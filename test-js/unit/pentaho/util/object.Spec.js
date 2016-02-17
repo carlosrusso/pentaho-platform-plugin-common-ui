@@ -19,7 +19,7 @@ define([
 
   "use strict";
 
-  /*global describe:true, it:true, expect:true, beforeEach:true, Object:true*/
+  /*global describe:false, it:false, expect:false, beforeEach:false, beforeAll:false, Object:false*/
 
   describe("pentaho.util.object -", function() {
     it("is an object containing the advertised functions", function() {
@@ -452,46 +452,39 @@ define([
     }); // getPropertyDescriptor
 
     [
-      {setPrototypeOf: true, ____proto__: true, _label: "ES5"},
-      {setPrototypeOf: false, ____proto__: true, _label: "setProtoProp"},
-      {setPrototypeOf: false, ____proto__: false, _label: "setProtoCopy"}
+      {has: {"Object.setPrototypeOf": true, "Object.prototype.__proto__": true}, _label: "ES5"},
+      {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": true}, _label: "setProtoProp"},
+      {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": false}, _label: "setProtoCopy"}
     ].forEach(function(conf) {
       describe("`setPrototypeOf` - " + conf._label + " variant -", function() {
-        var ori_setPrototypeOf = Object.setPrototypeOf;
-        var ori___proto__ = O.getPropertyDescriptor(Object.prototype, '__proto__');
-
         var modifiedO;
 
         beforeAll(function(done) {
+          define('mock/pentaho/shim/env', conf);
+
+          var mockedMap = {};
+          for (var key in require.s.contexts._.config.map) {
+            if (require.s.contexts._.config.map.hasOwnProperty(key)) {
+              mockedMap[key] = require.s.contexts._.config.map[key];
+            }
+          }
+
+          mockedMap['pentaho/util/object'] = {};
+          mockedMap['pentaho/util/object']['pentaho/shim/env'] = 'mock/pentaho/shim/env';
+
           var requireInContext = require.config({
             context: conf._label,
             baseUrl: require.s.contexts._.config.baseUrl,
             config: require.s.contexts._.config.config,
-            map: require.s.contexts._.config.map,
+            map: mockedMap,
             paths: require.s.contexts._.config.paths,
             packages: require.s.contexts._.config.packages,
             shim: require.s.contexts._.config.shim,
             bundles: require.s.contexts._.config.bundles
           });
 
-          if (!conf.setPrototypeOf) {
-            delete Object.setPrototypeOf;
-          }
-
-          if (!conf.____proto__) {
-            delete Object.prototype.__proto__;
-          }
-
           requireInContext(["pentaho/util/object"], function(newO) {
             modifiedO = newO;
-
-            if (!conf.setPrototypeOf) {
-              Object.setPrototypeOf = ori_setPrototypeOf;
-            }
-
-            if (!conf.____proto__) {
-              Object.defineProperty(Object.prototype, '__proto__', ori___proto__);
-            }
 
             done();
           });
@@ -573,6 +566,15 @@ define([
             expect(args.indexOf(spam.input[arg])).toBeGreaterThan(-1);
           }
         });
+      });
+
+      it("should accept passing no arguments to the constructor", function() {
+        var Spam = function() {
+          this.input = arguments;
+        };
+
+        var spam = O.make(Spam);
+        expect(spam.input.length).toBe(0);
       });
 
     }); // make
