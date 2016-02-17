@@ -19,7 +19,7 @@ define([
 
   "use strict";
 
-  /*global describe:true, it:true, expect:true, beforeEach:true, Object:true*/
+  /*global describe:false, it:false, expect:false, beforeEach:false, beforeAll:false, Object:false*/
 
   describe("pentaho.util.object -", function() {
     it("is an object containing the advertised functions", function() {
@@ -380,7 +380,7 @@ define([
           [], [1, 2, 3]
         ].forEach(function(src) {
           var clone = O.cloneShallow(src);
-          for(var prop in src) {
+          for (var prop in src) {
             expect(clone[prop]).toBe(src[prop]);
           }
         });
@@ -452,11 +452,44 @@ define([
     }); // getPropertyDescriptor
 
     [
-      {setPrototypeOf: O.setPrototypeOf, _label: "ES5"},
-      {setPrototypeOf: O._forTestingPurposesOnly.setProtoCopy, _label: "setProtoCopy"},
-      {setPrototypeOf: O._forTestingPurposesOnly.setProtoProp, _label: "setProtoProp"}
-    ].forEach(function(O) {
-      describe("`setPrototypeOf` - " + O._label + " variant -", function() {
+      {has: {"Object.setPrototypeOf": true, "Object.prototype.__proto__": true}, _label: "ES5"},
+      {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": true}, _label: "setProtoProp"},
+      {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": false}, _label: "setProtoCopy"}
+    ].forEach(function(conf) {
+      describe("`setPrototypeOf` - " + conf._label + " variant -", function() {
+        var modifiedO;
+
+        beforeAll(function(done) {
+          define('mock/pentaho/shim/env', conf);
+
+          var mockedMap = {};
+          for (var key in require.s.contexts._.config.map) {
+            if (require.s.contexts._.config.map.hasOwnProperty(key)) {
+              mockedMap[key] = require.s.contexts._.config.map[key];
+            }
+          }
+
+          mockedMap['pentaho/util/object'] = {};
+          mockedMap['pentaho/util/object']['pentaho/shim/env'] = 'mock/pentaho/shim/env';
+
+          var requireInContext = require.config({
+            context: conf._label,
+            baseUrl: require.s.contexts._.config.baseUrl,
+            config: require.s.contexts._.config.config,
+            map: mockedMap,
+            paths: require.s.contexts._.config.paths,
+            packages: require.s.contexts._.config.packages,
+            shim: require.s.contexts._.config.shim,
+            bundles: require.s.contexts._.config.bundles
+          });
+
+          requireInContext(["pentaho/util/object"], function(newO) {
+            modifiedO = newO;
+
+            done();
+          });
+        });
+
         var Spam, protoEggs, parrot;
         beforeEach(function() {
           Spam = function() {
@@ -474,22 +507,22 @@ define([
         });
 
         it("should return the input object, if the desired prototype is an object", function() {
-          expect(O.setPrototypeOf(parrot, protoEggs)).toBe(parrot);
+          expect(modifiedO.setPrototypeOf(parrot, protoEggs)).toBe(parrot);
         });
 
         it("should return the input object, if the desired prototype is `null` ", function() {
-          expect(O.setPrototypeOf(parrot, null)).toBe(parrot);
+          expect(modifiedO.setPrototypeOf(parrot, null)).toBe(parrot);
         });
 
         it("should replace the `prototype` of an object, if the desired prototype is an object", function() {
           expect(parrot.spam).toBe("spam");
-          O.setPrototypeOf(parrot, protoEggs);
+          modifiedO.setPrototypeOf(parrot, protoEggs);
           expect(parrot.spam).toBe("eggs");
         });
 
         it("should clear the object's prototype, if the desired prototype is `null`", function() {
           expect(parrot.spam).toBe("spam");
-          var deadParrot = O.setPrototypeOf(parrot, null);
+          var deadParrot = modifiedO.setPrototypeOf(parrot, null);
           expect(deadParrot.spam).toBeUndefined();
         });
 
@@ -500,7 +533,7 @@ define([
             Object.preventExtensions(new Spam())
           ].forEach(function(parrot) {
             expect(function() {
-              O.setPrototypeOf(parrot, protoEggs);
+              modifiedO.setPrototypeOf(parrot, protoEggs);
             }).toThrowError(TypeError);
           });
         });
@@ -529,10 +562,19 @@ define([
         ].forEach(function(args) {
           var spam = O.make(Spam, args);
           expect(spam.input.length).toBe(args.length);
-          for(var arg in spam.input) {
+          for (var arg in spam.input) {
             expect(args.indexOf(spam.input[arg])).toBeGreaterThan(-1);
           }
         });
+      });
+
+      it("should accept passing no arguments to the constructor", function() {
+        var Spam = function() {
+          this.input = arguments;
+        };
+
+        var spam = O.make(Spam);
+        expect(spam.input.length).toBe(0);
       });
 
     }); // make
