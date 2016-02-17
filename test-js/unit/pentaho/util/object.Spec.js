@@ -380,7 +380,7 @@ define([
           [], [1, 2, 3]
         ].forEach(function(src) {
           var clone = O.cloneShallow(src);
-          for(var prop in src) {
+          for (var prop in src) {
             expect(clone[prop]).toBe(src[prop]);
           }
         });
@@ -452,11 +452,51 @@ define([
     }); // getPropertyDescriptor
 
     [
-      {setPrototypeOf: O.setPrototypeOf, _label: "ES5"},
-      {setPrototypeOf: O._forTestingPurposesOnly.setProtoCopy, _label: "setProtoCopy"},
-      {setPrototypeOf: O._forTestingPurposesOnly.setProtoProp, _label: "setProtoProp"}
-    ].forEach(function(O) {
-      describe("`setPrototypeOf` - " + O._label + " variant -", function() {
+      {setPrototypeOf: true, ____proto__: true, _label: "ES5"},
+      {setPrototypeOf: false, ____proto__: true, _label: "setProtoProp"},
+      {setPrototypeOf: false, ____proto__: false, _label: "setProtoCopy"}
+    ].forEach(function(conf) {
+      describe("`setPrototypeOf` - " + conf._label + " variant -", function() {
+        var ori_setPrototypeOf = Object.setPrototypeOf;
+        var ori___proto__ = O.getPropertyDescriptor(Object.prototype, '__proto__');
+
+        var modifiedO;
+
+        beforeAll(function(done) {
+          var requireInContext = require.config({
+            context: conf._label,
+            baseUrl: require.s.contexts._.config.baseUrl,
+            config: require.s.contexts._.config.config,
+            map: require.s.contexts._.config.map,
+            paths: require.s.contexts._.config.paths,
+            packages: require.s.contexts._.config.packages,
+            shim: require.s.contexts._.config.shim,
+            bundles: require.s.contexts._.config.bundles
+          });
+
+          if (!conf.setPrototypeOf) {
+            delete Object.setPrototypeOf;
+          }
+
+          if (!conf.____proto__) {
+            delete Object.prototype.__proto__;
+          }
+
+          requireInContext(["pentaho/util/object"], function(newO) {
+            modifiedO = newO;
+
+            if (!conf.setPrototypeOf) {
+              Object.setPrototypeOf = ori_setPrototypeOf;
+            }
+
+            if (!conf.____proto__) {
+              Object.defineProperty(Object.prototype, '__proto__', ori___proto__);
+            }
+
+            done();
+          });
+        });
+
         var Spam, protoEggs, parrot;
         beforeEach(function() {
           Spam = function() {
@@ -474,22 +514,22 @@ define([
         });
 
         it("should return the input object, if the desired prototype is an object", function() {
-          expect(O.setPrototypeOf(parrot, protoEggs)).toBe(parrot);
+          expect(modifiedO.setPrototypeOf(parrot, protoEggs)).toBe(parrot);
         });
 
         it("should return the input object, if the desired prototype is `null` ", function() {
-          expect(O.setPrototypeOf(parrot, null)).toBe(parrot);
+          expect(modifiedO.setPrototypeOf(parrot, null)).toBe(parrot);
         });
 
         it("should replace the `prototype` of an object, if the desired prototype is an object", function() {
           expect(parrot.spam).toBe("spam");
-          O.setPrototypeOf(parrot, protoEggs);
+          modifiedO.setPrototypeOf(parrot, protoEggs);
           expect(parrot.spam).toBe("eggs");
         });
 
         it("should clear the object's prototype, if the desired prototype is `null`", function() {
           expect(parrot.spam).toBe("spam");
-          var deadParrot = O.setPrototypeOf(parrot, null);
+          var deadParrot = modifiedO.setPrototypeOf(parrot, null);
           expect(deadParrot.spam).toBeUndefined();
         });
 
@@ -500,7 +540,7 @@ define([
             Object.preventExtensions(new Spam())
           ].forEach(function(parrot) {
             expect(function() {
-              O.setPrototypeOf(parrot, protoEggs);
+              modifiedO.setPrototypeOf(parrot, protoEggs);
             }).toThrowError(TypeError);
           });
         });
@@ -529,7 +569,7 @@ define([
         ].forEach(function(args) {
           var spam = O.make(Spam, args);
           expect(spam.input.length).toBe(args.length);
-          for(var arg in spam.input) {
+          for (var arg in spam.input) {
             expect(args.indexOf(spam.input[arg])).toBeGreaterThan(-1);
           }
         });

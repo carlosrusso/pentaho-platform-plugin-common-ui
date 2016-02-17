@@ -258,11 +258,6 @@ define(function() {
         });
 
       return Class.apply(inst, args || A_empty) || inst;
-    },
-
-    _forTestingPurposesOnly: {
-      setProtoCopy: setProtoCopy,
-      setProtoProp: setProtoProp
     }
   };
 
