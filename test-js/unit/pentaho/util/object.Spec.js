@@ -456,7 +456,7 @@ define([
       {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": true}, _label: "setProtoProp"},
       {has: {"Object.setPrototypeOf": false, "Object.prototype.__proto__": false}, _label: "setProtoCopy"}
     ].forEach(function(conf) {
-      describe("`setPrototypeOf` - " + conf._label + " variant -", function() {
+      xdescribe("`setPrototypeOf` - " + conf._label + " variant -", function() {
         var modifiedO;
 
         beforeAll(function(done) {

@@ -57,4 +57,7 @@
   // Reset "pentaho/service" module configuration.
   requireCfg.config["pentaho/service"] = {};
 
+  requireCfg.paths["jasq"] = "/base/node_modules/jasq/jasq";
+  requireCfg.paths["Squire"] = "/base/node_modules/squirejs/src/Squire";
+
 }());
