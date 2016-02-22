@@ -1,42 +1,119 @@
 define([
-  "cdf/lib/Base"
-], function(Base) {
+  "pentaho/lang/Base",
+  "pentaho/data/TableView"
+], function(Base, TableView) {
   "use strict";
 
-  var Node = Base.extend({
+  var AbstractFilter = Base.extend({
     constructor: function(value) {
       this._value = value;
     },
-    predicate: function(v) {
+
+    predicate: function(row) {
       return false;
+    },
+
+    contains: function(element) {
+      return AbstractFilter.contains(this, element);
+    },
+
+    negation: function() {
+      return AbstractFilter.negation(this);
+    },
+
+    union: function(filter) {
+      return AbstractFilter.union(this, filter);
+    },
+
+    intersection: function(filter) {
+      return AbstractFilter.intersection(this, filter);
+    },
+
+    filter: function(dataTable) {
+      var k, nRows = dataTable.getNumberOfRows();
+      var filteredRows = [];
+
+      for(k = 0; k < nRows; k++) {
+        var row = {
+          dataTable: dataTable,
+          rowIdx: k
+        };
+        var bool = this.predicate(row);
+        if(bool) {
+          filteredRows.push(k);
+        }
+      }
+
+      var dataView = new TableView(dataTable);
+      dataView.setSourceRows(filteredRows);
+      return dataView;
+    }
+  }, {
+    contains: function(filter, element) {
+      return false || true;
+    },
+
+    union: function(filterA, filterB) {
+      var union = new OrFilter();
+      union.insert(filterA);
+      union.insert(filterB);
+      return union;
+    },
+
+    negation: function(filterA) {
+      var negation = new NotFilter();
+      negation.insert(filterA);
+      return negation;
+    },
+
+    intersection: function(filterA, filterB) {
+      var intersection = new AndFilter();
+      intersection.insert(filterA);
+      intersection.insert(filterB);
+      return intersection;
+    },
+
+    filter: function(filter, dataTable) {
+      return filter.filter(dataTable);
     }
   });
 
-  var AbstractPropertyFilter = Node.extend({
+
+  var AbstractPropertyFilter = AbstractFilter.extend({
     get type() { return "abstract";},
-    constructor: function(value, property) {
+
+    constructor: function(property, value) {
       this.base(value);
       this._property = property;
     },
+
     _method: null,
-    predicate: function(v) {
-      return this._method(v[this._property]);
+
+    predicate: function(row) {
+      var prop = row.dataTable.model.attributes.get(this._property);
+      if(!prop)
+        return false;
+
+      var value = row.dataTable.getValue(row.rowIdx, prop.ordinal);
+      return this._method(value);
     }
   });
 
   var IsEqual = AbstractPropertyFilter.extend({
     get type() { return "isEqual";},
-    _method: function(v) {
-      return this._value === v;
+
+    _method: function(value) {
+      return this._value === value;
     }
   });
 
   var IsIn = AbstractPropertyFilter.extend({
     get type() { return "isIn";},
-    _method: function(v) {
-      var n = this._value.length;
-      while(n--){
-        if(this._value[n] === v)
+
+    _method: function(value) {
+      var N = this._value.length;
+      for(var k = 0; k < N; k++) {
+        if(this._value[k] === value)
           return true;
       }
       return false;
@@ -44,8 +121,9 @@ define([
   });
 
 
-  var Tree = Node.extend({
+  var AbstractTreeFilter = AbstractFilter.extend({
     get type() { return "tree";},
+
     constructor: function() {
       this._children = [];
     },
@@ -57,61 +135,110 @@ define([
 
     insert: function(element) {
       this._children.push(element);
+      return this;
     },
 
-    combine: function(a, b) {
+    predicate: function(row) {
       return false;
-    },
-    predicate: function(v) {
-      var me = this;
-      return this._children.reduce(function(memo, child) {
-        return me.combine(memo, child.predicate(v));
-      });
     }
   });
 
-  var AbstractFilter = Tree.extend({
-    contains: function(element){
-      return false || true;
-    },
-    union: function(filter){
-      return null || filter;
-    },
-    intersection: function(filter){
-      return null || filter;
-    },
-    filter: function(rows){
-      var self = this;
-      self.predicate(rows);
-      return null || rows;
-    }
-  });
-
-  var FilterOr = AbstractFilter.extend({
+  var OrFilter = AbstractTreeFilter.extend({
     get type() { return "or";},
-    combine: function(a, b) {
-      return a || b;
+
+    predicate: function(row) {
+      var N = this.children ? this.children.length : 0;
+      var memo = false;
+
+      for(var k = 0; k < N; k++) {
+        memo = memo || this.children[k].predicate(row);
+        if(memo)
+          return true;
+      }
+      return false;
     }
   });
 
-  var FilterAnd = AbstractFilter.extend({
+  var AndFilter = AbstractTreeFilter.extend({
     get type() { return "and";},
-    combine: function(a, b) {
-      return a && b;
+
+    predicate: function(row) {
+      var N = this.children ? this.children.length : 0;
+      var memo = true;
+      for(var k = 0; k < N; k++) {
+        memo = memo && this.children[k].predicate(row);
+        if(!memo)
+          return false;
+      }
+      return true;
     }
   });
 
-  var FilterRoot = FilterOr.extend({
+  var NotFilter = AbstractTreeFilter.extend({
+    get type() { return "not";},
+
+    insert: function(element) {
+      this._children = [element];
+      return this;
+    },
+
+    predicate: function(row) {
+      if(this.children && this.children.length === 1) {
+        return !this.children[0].predicate(row)
+      } else {
+        throw Error("Poop");
+      }
+    }
   });
+
+
+  var RootFilter = OrFilter.extend({});
 
   return {
     // Leaf nodes
     IsEqual: IsEqual,
     IsIn: IsIn,
     // Non-leaf nodes
-    Or: FilterOr,
-    And: FilterAnd,
-    Filter: FilterRoot
+    Or: OrFilter,
+    And: AndFilter,
+    Not: NotFilter,
+    Root: RootFilter,
+    // factories
+    isEqual: function(property, value) { return new IsEqual(property, value); },
+    isIn: function(property, value) { return new IsIn(property, value); },
+    union: union,
+    intersection: intersection,
+    negation: negation,
+    or: union,
+    and: intersection,
+    not: negation
   };
+
+
+  function union() {
+    var filter = new OrFilter();
+    var N = arguments.length;
+    for(var k = 0; k++; k < N) {
+      filter.insert(arguments[k]);
+    }
+    return filter;
+  }
+
+  function intersection() {
+    var filter = new AndFilter();
+    var N = arguments.length;
+    for(var k = 0; k++; k < N) {
+      filter.insert(arguments[k]);
+    }
+    return filter;
+  }
+
+  function negation(elem) {
+    var filter = new NotFilter();
+    if(elem)
+      filter.insert(elem);
+    return filter;
+  }
+
 
 });
