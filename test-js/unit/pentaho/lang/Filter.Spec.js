@@ -15,8 +15,9 @@
  */
 define([
   "pentaho/lang/Filter",
-  "pentaho/data/Table"
-], function(Filter, Table) {
+  "pentaho/data/Table",
+  "pentaho/data/TableView"
+], function(Filter, Table, TableView) {
   "use strict";
 
   describe("Filter", function() {
@@ -47,8 +48,18 @@ define([
 
       it("should work ", function() {
         var isProductA = new Filter.IsEqual("product", "A");
-        var filteredData = isProductA.filter(data);
+        expect(isProductA.type).toBe("isEqual");
 
+        var filteredData = isProductA.filter(data);
+        expect(filteredData.getNumberOfRows()).toBe(1);
+        expect(filteredData.getValue(0, 0)).toBe("A");
+      });
+
+      it("should work ", function() {
+        var isProductA = Filter.isEqual("product", "A");
+        expect(isProductA.type).toBe("isEqual");
+
+        var filteredData = isProductA.filter(data);
         expect(filteredData.getNumberOfRows()).toBe(1);
         expect(filteredData.getValue(0, 0)).toBe("A");
       });
@@ -63,7 +74,7 @@ define([
       });
 
       it("should work ", function() {
-        var isProductA = new Filter.IsEqual("sales", 5000);
+        var isProductA = Filter.isEqual("sales", 5000);
         var filteredData = isProductA.filter(data);
 
         expect(filteredData.getNumberOfRows()).toBe(0);
@@ -75,6 +86,17 @@ define([
 
       it("should work ", function() {
         var isProductAC = new Filter.IsIn("product", ["A", "C"]);
+        expect(isProductAC.type).toBe("isIn");
+        var filteredData = isProductAC.filter(data);
+
+        expect(filteredData.getNumberOfRows()).toBe(2);
+        expect(filteredData.getValue(0, 0)).toBe("A");
+        expect(filteredData.getValue(1, 0)).toBe("C");
+      });
+
+      it("should work ", function() {
+        var isProductAC = Filter.isIn("product", ["A", "C"]);
+        expect(isProductAC.type).toBe("isIn");
         var filteredData = isProductAC.filter(data);
 
         expect(filteredData.getNumberOfRows()).toBe(2);
@@ -92,7 +114,7 @@ define([
       });
 
       it("should work ", function() {
-        var isProductA = new Filter.IsIn("sales", [5000, 7000]);
+        var isProductA = Filter.isIn("sales", [5000, 7000]);
         var filteredData = isProductA.filter(data);
 
         expect(filteredData.getNumberOfRows()).toBe(0);
@@ -106,6 +128,17 @@ define([
         var inStock = new Filter.IsEqual("inStock", true);
 
         var combination = sales12k.intersection(inStock);
+        var filteredData = combination.filter(data);
+
+        expect(filteredData.getNumberOfRows()).toBe(1);
+        expect(filteredData.getValue(0, 0)).toBe("A");
+      });
+
+      it("should return the intersection of the filters with the data", function() {
+        var sales12k = Filter.isEqual("sales", 12000);
+        var inStock = Filter.isEqual("inStock", true);
+
+        var combination = Filter.intersection(sales12k, inStock);
         var filteredData = combination.filter(data);
 
         expect(filteredData.getNumberOfRows()).toBe(1);
@@ -129,8 +162,20 @@ define([
         expect(filteredData.getValue(2, 0)).toBe("C");
       });
 
-    });
+      it("should return the union of the filters with the data", function() {
+        var sales12k = Filter.isEqual("sales", 12000);
+        var inStock = Filter.isEqual("inStock", true);
 
+        var combination = Filter.union(sales12k, inStock);
+        var filteredData = combination.filter(data);
+
+        expect(filteredData.getNumberOfRows()).toBe(3);
+        expect(filteredData.getValue(0, 0)).toBe("A");
+        expect(filteredData.getValue(1, 0)).toBe("B");
+        expect(filteredData.getValue(2, 0)).toBe("C");
+      });
+
+    });
 
     describe("negation ", function() {
       it("should return the negation of a simple filter", function() {
@@ -148,12 +193,28 @@ define([
 
       });
 
+      it("should return the negation of a simple filter", function() {
+        var sales12k = Filter.negation(Filter.isEqual("sales", 12000));
+
+        var filteredData = sales12k.filter(data);
+
+        expect(filteredData.getNumberOfRows()).toBe(5);
+        [
+          "B", "D", "E", "F", "G"
+        ].forEach(function(product, idx) {
+          expect(filteredData.getValue(idx, 0)).toBe(product);
+        });
+
+      });
+
       it("should return the negation of a complex filter", function() {
         var filter = new Filter.Or();
+        expect(filter.type).toBe("or");
+        expect(filter.predicate()).toBe(false);
         filter
-          .insert(new Filter.IsEqual("product", "A"))
-          .insert(new Filter.IsEqual("product", "B"))
-          .insert(new Filter.IsEqual("product", "C"));
+            .insert(new Filter.IsEqual("product", "A"))
+            .insert(new Filter.IsEqual("product", "B"))
+            .insert(new Filter.IsEqual("product", "C"));
 
         var combination = filter.negation(filter);
         var filteredData = combination.filter(data);
@@ -166,8 +227,84 @@ define([
         });
 
       });
+
+      it("should return the negation of a complex filter", function() {
+        var filter = Filter.or();
+        expect(filter.type).toBe("or");
+        expect(filter.predicate()).toBe(false);
+        filter
+            .insert(Filter.isEqual("product", "A"))
+            .insert(Filter.isEqual("product", "B"))
+            .insert(Filter.isEqual("product", "C"));
+
+        var combination = Filter.negation(filter);
+        var filteredData = combination.filter(data);
+
+        expect(filteredData.getNumberOfRows()).toBe(4);
+        [
+          "D", "E", "F", "G"
+        ].forEach(function(product, idx) {
+          expect(filteredData.getValue(idx, 0)).toBe(product);
+        });
+
+      });
     });
 
+    describe("contains ", function() {
+
+      it("should return the contains of a simple filter", function() {
+        var productFilter = new Filter.IsIn("product", ["A", "B", "C", "D", "E", "F", "G"]);
+        var filteredData = productFilter.filter(data);
+        expect(productFilter.contains(data)).toBe(true);
+      });
+
+      it("should return the contains of a simple filter", function() {
+        var productFilter = Filter.isIn("product", ["A", "B", "C", "D", "E", "F", "G"]);
+        var filteredData = productFilter.filter(data);
+        expect(productFilter.contains(data)).toBe(true);
+      });
+
+      it("should return the contains of a simple filter", function() {
+        var productFilter = new Filter.IsIn("product", ["A", "B", "C", "D", "E", "F"]);
+        var filteredData = productFilter.filter(data);
+        expect(productFilter.contains(data)).toBe(false);
+      });
+
+      it("should return the contains of a simple filter", function() {
+        var productFilter = Filter.isIn("product", ["A", "B", "C", "D", "E", "F"]);
+        var filteredData = productFilter.filter(data);
+        expect(productFilter.contains(data)).toBe(false);
+      });
+
+    });
+
+    describe("AbstractTreeFilter ", function() {
+
+      it("OrFilter ", function() {
+        var filter = new Filter.Or();
+        expect(filter.type).toBe("or");
+        expect(filter.predicate()).toBe(false);
+      });
+
+      it("AndFilter ", function() {
+        var filter = new Filter.And();
+        expect(filter.type).toBe("and");
+        expect(filter.predicate()).toBe(true);
+      });
+
+      it("NotFilter ", function() {
+        var filter = new Filter.Not();
+        expect(filter.type).toBe("not");
+        //expect(filter.predicate()).toThrow("Poop");
+      });
+
+      it("RootFilter ", function() {
+        var filter = new Filter.Root();
+        expect(filter.type).toBe("or");
+        expect(filter.predicate()).toBe(false);
+      });
+
+    });
 
   });
 });
