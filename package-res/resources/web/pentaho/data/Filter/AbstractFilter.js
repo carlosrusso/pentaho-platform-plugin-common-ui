@@ -17,10 +17,13 @@ define([
   "../../lang/Base",
   "../Element",
   "../TableView",
+  "./Or",
+  "./And",
+  "./Not",
+  "../../util/arg",
   "require"
-], function(Base, Element, TableView, require) {
+], function(Base, Element, TableView, Or, And, Not, arg, require) {
   "use strict";
-
 
   /**
    * @lends pentaho.lang.AbstractFilter
@@ -30,9 +33,11 @@ define([
    */
   var AbstractFilter = Base.extend({
     constructor: function(value) {
+      // Abstract filter has no value... What is this?
       this._value = value;
     },
 
+    // Abstract filter has no value... What is this?
     /**
      *
      * @readonly
@@ -61,36 +66,37 @@ define([
       return false;
     },
 
+    // or negate?
     /**
-     * Returns a filter that negates this filter.
+     * Returns a filter that is the inverse of this filter.
      * @returns {*}
      */
-    negation: function() {
-      return AbstractFilter.negation(this);
+    invert: function() {
+      return AbstractFilter.not(this);
     },
 
+    // Why not N others?
     /**
-     * Returns a filter that is the union of this filter with the other.
+     * Returns a filter that is the union of this filter with another.
      * In other words, implements the OR operation between this filter and another.
      * @param {} other -
      * @returns {*}
      */
-    union: function(other) {
-      return AbstractFilter.union(this, other);
+    or: function(other) {
+      return AbstractFilter.or(this, other);
     },
 
-    intersection: function(other) {
-      return AbstractFilter.intersection(this, other);
+    // Why not N others?
+    and: function(other) {
+      return AbstractFilter.and(this, other);
     },
 
-    filter: function(dataTable) {
-      var k, nRows = dataTable.getNumberOfRows();
+    apply: function(dataTable) {
+      var nRows = dataTable.getNumberOfRows();
       var filteredRows = [];
 
-      for(k = 0; k < nRows; k++) {
-        var entry = new Element(dataTable, k);
-        var bool = this.contains(entry);
-        if(bool) {
+      for(var k = 0; k < nRows; k++) {
+        if(this.contains(new Element(dataTable, k))) {
           filteredRows.push(k);
         }
       }
@@ -100,31 +106,29 @@ define([
       return dataView;
     }
   }, {
-    union: function() {
-      var OrFilter = require("./Or");
-      return new OrFilter(argumentsToArray(arguments));
+    or: function() {
+      // Need to declare dependency, above.
+      // Call require the first time only.
+      if(!Or) Or = require("./Or");
+      return new Or(arg.slice(arguments));
     },
 
-    negation: function(a) {
-      var NotFilter = require("./Not");
-      return new NotFilter(a);
+    not: function(a) {
+      if(!Not) Not = require("./Not");
+      return new Not(a);
     },
 
-    intersection: function() {
-      var AndFilter = require("./And");
-      return new AndFilter(argumentsToArray(arguments));
+    and: function() {
+      if(!And) And = require("./And");
+      return new And(arg.slice(arguments));
     },
 
-    filter: function(filter, dataTable) {
-      return filter.filter(dataTable);
+    // No need for this method to exist is there? (as static)
+    apply: function(filter, dataTable) {
+      return filter.apply(dataTable);
     }
   });
 
   return AbstractFilter;
-
-  function argumentsToArray(args) {
-    return args.length === 1 ? [args[0]] : Array.apply(null, args);
-  }
-
 
 });

@@ -25,6 +25,7 @@ define([
     },
 
     has: function(property) {
+      // Put the constant at the right please.
       return null != this.dataTable.model.attributes.get(property);
     },
 

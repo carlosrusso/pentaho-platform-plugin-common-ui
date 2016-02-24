@@ -23,6 +23,8 @@ define([
     get type() { return "$or";},
 
     contains: function(entry) {
+      // AbstractTreeFilter always creates children...
+      // Also, if N is 0, the loop below already evaluates to false.
       var N = this.children ? this.children.length : 0;
       if(N === 0) return false; // false is the neutral element of an OR operation
 
@@ -33,17 +35,22 @@ define([
       return memo;
     },
 
-    union: function() {
+    // same notes as for And.and
+    or: function() {
       for(var k = 0, N = arguments.length; k < N; k++) {
         this.insert(arguments[k]);
       }
       return this;
     },
 
-    negation: function() {
+    // same notes as for And.invert
+    invert: function() {
       var negatedChildren = this.children.map(function(child) {
-        return child.negation();
+        return child.invert();
       });
+
+      // Idem, need to declare ./And as a dependency above and then
+      // only go through require the first time.
       var AndFilter = require("./And");
       return new AndFilter(negatedChildren);
     }
