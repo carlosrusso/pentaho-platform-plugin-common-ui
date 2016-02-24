@@ -28,11 +28,13 @@ define([
         this._children = children ? [children] : [];
     },
 
-    _children: null,
+    // Don't declare prototype _data_ properties unless actually needed (not the case...)
+    // _children: null,
     get children() {
       return this._children;
     },
 
+    // Should be immutable!
     insert: function(element) {
       this._children.push(element);
       return this;

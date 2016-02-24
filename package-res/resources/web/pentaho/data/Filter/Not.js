@@ -19,15 +19,22 @@ define([
 ], function(AbstractTreeFilter, _toSpec) {
   "use strict";
 
+  // Please be consistent on the use of _children and children.
+
   var NotFilter = AbstractTreeFilter.extend({
     get type() { return "$not";},
 
+    // immutability?
     insert: function(element) {
       this._children = [element];
       return this;
     },
 
     contains: function(entry) {
+      // children is always an array and always of length 1...
+      // (or an error should have been thrown in the constructor)
+      // -> immutability?
+
       if(this.children && this.children.length === 1) {
         return !this.children[0].contains(entry);
       } else {
@@ -35,11 +42,13 @@ define([
       }
     },
 
-    negation: function() {
-      return this.children[0];
+    // This might be an acceptable, desirable, build-time simplification
+    invert: function() {
+      return this.children[0]; // see, you assume [0] exists here!
     },
 
     toSpec: function(){
+      // ...but here vacillate again!
       return _toSpec(this.type, this._children.length ? this.children[0].toSpec() :  null);
     }
   });

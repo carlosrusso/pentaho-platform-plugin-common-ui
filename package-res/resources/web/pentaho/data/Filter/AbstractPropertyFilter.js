@@ -24,16 +24,19 @@ define([
 
     constructor: function(property, value) {
       this.base(value);
+
+      // Should have a public getter for this as well.
       this._property = property;
     },
 
+    // Maybe it's a good time to star rethinking the name of this _method...
     _method: null,
 
+    // Although this could perhaps be made more efficient by testing existence and
+    // reading the value in the same go...
     contains: function(entry) {
-      if(!entry.has(this._property))
-        return false;
-
-      return this._method(entry.getValue(this._property));
+      return entry.has(this._property) &&
+             this._method(entry.getValue(this._property));
     },
 
     /**
