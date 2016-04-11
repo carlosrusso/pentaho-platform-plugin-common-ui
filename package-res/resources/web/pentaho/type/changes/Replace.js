@@ -20,48 +20,39 @@ define([
   "use strict";
 
   /**
-   * @name RemoveAt
+   * @name Replace
    * @memberOf pentaho.type.changes
    * @class
    * @extends pentaho.type.changes.OwnedChange
-   * @amd pentaho/type/changes/RemoveAt
+   * @amd pentaho/type/changes/Replace
+   * @abstract
    *
-   * @classDesc Describes an operation that removes a set of elements from a list.
+   * @classDesc Class that describes the replacement of the value in a [single-valued, simple property]{@linkplain pentaho.type.Simple}.
    *
    * @constructor
    * @description Creates an instance.
    *
-   * @param {!pentaho.type.Element[]} elements - The objects to be removed from the list.
-   * @param {number} start - The position in the list of the first element to be removed.
    */
-  return OwnedChange.extend("pentaho.type.RemoveAt", {
+  return OwnedChange.extend("pentaho.type.changes.Replace", /** @lends pentaho.type.changes.Replace# */{
 
-    constructor: function(elements, start) {
-      this.at = start;
-      this.toRemove = elements;
+    constructor: function(propertyName, valueSpec) {
+      this._propertyName = propertyName;
+      this._value = valueSpec;
+    },
+
+    get type(){
+      return "replace";
     },
 
     /**
-     * @inheritdoc
+     * Modifies the value of a property in a complex.
+     *
+     * @param {!pentaho.type.Complex} complex - The [complex]{@linkplain pentaho.type.Complex} associated with this change.
      */
-    get type() {
-      return "removeAt";
-    },
-
-    /**
-     * @inheritdoc
-     */
-    apply: function(list) {
-      var toRemove = this.toRemove;
-      var start = this.at;
-
-      list._elems.splice(start, toRemove.length);
-
-      toRemove.forEach(function(elem) {
-        delete list._keys[elem.key];
-      });
-
-      return list;
+    apply: function(complex) {
+      var propertyName = this._propertyName;
+      complex._values[propertyName] = complex.type.get(propertyName).toValue(this._value);
     }
+
   });
 });

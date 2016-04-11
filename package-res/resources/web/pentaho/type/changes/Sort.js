@@ -15,14 +15,14 @@
  */
 
 define([
-  "./Operation"
-], function(Operation) {
+  "./OwnedChange"
+], function(OwnedChange) {
   "use strict";
   /**
    * @name Sort
    * @memberOf pentaho.type.changes
    * @class
-   * @extends pentaho.type.changes.Operation
+   * @extends pentaho.type.changes.OwnedChange
    * @amd pentaho/type/changes/sort
    *
    * @classDesc Describes an operation that sorts the element in a list.
@@ -33,7 +33,7 @@ define([
    * @param {function(pentaho.type.Element, pentaho.type.Element) : number} comparer - The
    * function used for comparing elements in the list.
    */
-  return Operation.extend("pentaho.type.changes.Sort", /** @lends pentaho.type.changes.Sort# */{
+  return OwnedChange.extend("pentaho.type.changes.Sort", /** @lends pentaho.type.changes.Sort# */{
 
     constructor: function(comparer) {
       this.comparer = comparer;

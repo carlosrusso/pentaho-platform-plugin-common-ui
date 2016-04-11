@@ -15,15 +15,15 @@
  */
 
 define([
-  "./Operation"
-], function(Operation) {
+  "./OwnedChange"
+], function(OwnedChange) {
   "use strict";
 
   /**
    * @name RemoveOne
    * @memberOf pentaho.type.changes
    * @class
-   * @extends pentaho.type.changes.Operation
+   * @extends pentaho.type.changes.OwnedChange
    * @amd pentaho/type/changes/RemoveOne
    *
    * @classDesc Describes an operation that removes an element from a list.
@@ -34,7 +34,7 @@ define([
    * @param {!pentaho.type.Element} elem - The object to be removed from the list.
    * @param {string} key - The key that is being used for identifying the object in the list.
    */
-  return Operation.extend("pentaho.type.RemoveOne", {
+  return OwnedChange.extend("pentaho.type.RemoveOne", {
 
     constructor: function(elem, key) {
       this.key = key;

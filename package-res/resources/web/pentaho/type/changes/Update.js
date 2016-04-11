@@ -15,27 +15,27 @@
  */
 
 define([
-  "./Operation"
-], function(Operation) {
+  "./OwnedChange"
+], function(OwnedChange) {
   "use strict";
-  
+
   /**
    * @name Update
    * @memberOf pentaho.type.changes
    * @class
-   * @extends pentaho.type.changes.Operation
+   * @extends pentaho.type.changes.OwnedChange
    * @amd pentaho/type/changes/Update
    *
    * @classDesc Describes an operation that updates an element in a list.
-   * In an `update` operation, the reference to the element does not change, but its contents does.
+   * In an `update` operation, the reference to the element does not change, but its content does.
    *
    * @constructor
    * @description Creates an instance.
    *
    * @param {!pentaho.type.Element} elem - The object (already in the list) that will be updated.
-   * @param {!pentaho.type.Element} other - The object with the content will be used for updating the list.
+   * @param {!pentaho.type.Element} other - The object with the content that will be used for updating the list.
    */
-  return Operation.extend("pentaho.type.changes.Update", /** @lends pentaho.type.changes.Update# */{
+  return OwnedChange.extend("pentaho.type.changes.Update", /** @lends pentaho.type.changes.Update# */{
 
     constructor: function(elem, other) {
       this.elem = elem;

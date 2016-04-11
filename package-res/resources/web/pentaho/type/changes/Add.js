@@ -15,15 +15,15 @@
  */
 
 define([
-  "./Operation"
-], function(Operation) {
+  "./OwnedChange"
+], function(OwnedChange) {
   "use strict";
 
   /**
    * @name Add
    * @memberOf pentaho.type.changes
    * @class
-   * @extends pentaho.type.changes.Operation
+   * @extends pentaho.type.changes.OwnedChange
    * @amd pentaho/type/changes/Add
    *
    * @classDesc Describes an operation that adds an element to a list.
@@ -35,7 +35,7 @@ define([
    * @param {number} index - The position in the list at which the element should to be inserted.
    * @param {string} key - The key that should be used for identifying the object to be added.
    */
-  return Operation.extend("pentaho.type.changes.Add", /** @lends pentaho.type.changes.Add# */{
+  return OwnedChange.extend("pentaho.type.changes.Add", /** @lends pentaho.type.changes.Add# */{
 
     constructor: function(elem, index, key) {
       this.at = index;

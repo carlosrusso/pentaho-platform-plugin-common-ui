@@ -15,36 +15,28 @@
  */
 
 define([
-  "../../lang/Base"
-], function(Base) {
+  "./Change"
+], function(Change) {
   "use strict";
 
   /**
    * @name Change
    * @memberOf pentaho.type.changes
    * @class
+   * @abstract
    * @extends pentaho.lang.Base
    * @amd pentaho/type/changes/Change
-   * @abstract
    *
-   * @classDesc Base class for describing changes on the values of properties.
+   * @classDesc Base class for describing modifications to an object.
    */
-  return Base.extend("pentaho.type.changes.Change", /** @lends pentaho.type.changes.Change# */{
-
+  return Change.extend("pentaho.type.changes.OwnedChange", /** @lends pentaho.type.changes.OwnedChange# */{
     /**
-     * Identifies the type of change implemented by this object.
+     * Modifies the provided element.
      *
-     * @type {string}
-     * @readonly
+     * @method
+     * @param {!pentaho.type.Element} element - The object to be modified.
      * @abstract
      */
-    type: null,
-
-    freeze: function(){
-      Object.freeze(this);
-    }
-
+    apply: null
   });
-
 });
-

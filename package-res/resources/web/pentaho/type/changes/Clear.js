@@ -15,39 +15,42 @@
  */
 
 define([
-  "../../lang/Base"
-], function(Base) {
+  "./OwnedChange"
+], function(OwnedChange) {
   "use strict";
 
   /**
-   * @name Operation
+   * @name Clear
    * @memberOf pentaho.type.changes
    * @class
-   * @abstract
-   * @extends pentaho.lang.Base
-   * @amd pentaho/type/changes/Operation
+   * @extends pentaho.type.changes.OwnedChange
+   * @amd pentaho/type/changes/Clear
    *
-   * @classDesc Base class for describing an operation on a property.
+   * @classDesc Describes an operation that clears the elements of a list.
+   *
+   * @constructor
+   * @description Creates an instance.
+   *
    */
-  return Base.extend("pentaho.type.changes.Operation", /** @lends pentaho.type.changes.Operation# */{
-    /**
-     * Identifies the type of operation implemented by this object.
-     *
-     * @type {string}
-     * @readonly
-     * @abstract
-     */
-    type: null,
+  return OwnedChange.extend("pentaho.type.changes.Clear", /** @lends pentaho.type.changes.Clear# */{
+
+    constructor: function() {
+    },
 
     /**
-     * Modifies the provided property.
-     *
-     * @method
-     * @param {!pentaho.type.Value} property - The property to be changed.
-     * @return {!pentaho.type.Value} Returns the modified property.
-     * @abstract
+     * @inheritdoc
      */
-    apply: null
+    get type() {
+      return "clear";
+    },
+
+    /**
+     * @inheritdoc
+     */
+    apply: function(list) {
+      list._elems = [];
+      list._keys = {};
+      return list;
+    }
   });
 });
-

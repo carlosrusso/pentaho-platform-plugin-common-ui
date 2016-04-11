@@ -15,25 +15,26 @@
  */
 
 define([
-  "./ValueChange",
+  "./Changeset",
   "./Add",
   "./RemoveOne",
   "./RemoveAt",
   "./Update",
   "./Sort",
+  "./Clear",
   "../../util/arg",
   "../../util/object"
-], function(ValueChange,
-            Add, RemoveOne, RemoveAt, Update, Sort,
+], function(Changeset,
+            Add, RemoveOne, RemoveAt, Update, Sort, Clear,
             arg, O) {
   "use strict";
 
   /**
-   * @name ListChange
+   * @name ListChangeset
    * @memberOf pentaho.type.changes
    * @class
-   * @extends pentaho.type.changes.ValueChange
-   * @amd pentaho/type/changes/ListChange
+   * @extends pentaho.type.changes.Changeset
+   * @amd pentaho/type/changes/ListChangeset
    *
    * @classDesc Class that represents changes in a multi-valued property
    * in a [complex]{@linkplain pentaho.type.Complex} object.
@@ -41,16 +42,15 @@ define([
    * @constructor
    * @description Creates a new instance.
    *
-   * @param {!pentaho.type.Complex} owner - The [complex]{@linkplain pentaho.type.Complex} that contains the property associated with this change.
-   * @param {!pentaho.type.List} list - The [multi-valued property]{@linkplain pentaho.type.List} associated with this change.
-   * @param {!pentaho.type.List} list - The [multi-valued property]{@linkplain pentaho.type.List} associated with this change.
+   * @param {!pentaho.type.List} owner - The [multi-valued property]{@linkplain pentaho.type.List} associated with this change.
+   * @param {!pentaho.type.Element[]|!pentaho.type.spec.IElement[]} [valueSpec] - The [multi-valued property]{@linkplain pentaho.type.List} associated with this change.
    */
-  return ValueChange.extend("pentaho.type.changes.ListChange", /** @lends pentaho.type.changes.ListChange# */{
+  return Changeset.extend("pentaho.type.changes.ListChangeset", /** @lends pentaho.type.changes.ListChangeset# */{
 
-    constructor: function(owner, list, valueSpec) {
+    constructor: function(owner, valueSpec) {
       this.base(owner);
 
-      this._oldValue = list;
+      this._oldValue = owner;
       this._addKeys = {};
       this._removeKeys = {};
 
@@ -63,15 +63,32 @@ define([
      * @inheritdoc
      */
     get type() {
-      return "listChange";
+      return "listChangeset";
     },
 
     /**
      * Gets the list of operations to be applied.
-     * @returns {pentaho.type.change.Operation[]}
+     * @return {pentaho.type.change.OwnedChange[]}
      */
-    get changes() {
-      return this._changes;
+    getChanges: function() {
+      return this._changes.slice();
+    },
+
+    /**
+     * Asserts if this changeset contains any defined changes.
+     *
+     * @return {boolean} `true` if at least one change is defined,
+     * `false` if no changes are defined.
+     */
+    hasChanges: function() {
+      return this._changes.length > 0;
+    },
+
+    /**
+     * Removes all changes in this changeset.
+     */
+    clearChanges: function() {
+      this._changes.splice(0);
     },
 
     /**
@@ -82,14 +99,39 @@ define([
      */
     get newValue() {
       var newValue = this._newValue;
-      if(newValue) return newValue;
+      var n = this._changes.length;
 
-      this._newValue = newValue = this.apply(this.oldValue.clone());
-      return newValue;
+      var cachedValue, cachedIdx;
+      if(newValue) {
+        cachedValue = newValue;
+        cachedIdx = this._cachedUpToIdx;
+      } else {
+        cachedValue = this.oldValue;
+        cachedIdx = 0;
+      }
+
+      if(cachedIdx < n) {
+        this._newValue = cachedValue = this._apply(cachedValue.clone(), cachedIdx);
+        this._cachedUpToIdx = n;
+      } else if(cachedIdx > n) {
+        // should never happen while using the regular API
+        this._newValue = cachedValue = this._apply(this.oldValue.clone(), 0);
+        this._cachedUpToIdx = n;
+      }
+      return cachedValue.clone(); // user may destroy the returned value
     },
 
     /**
-     * Adds, removes and/or updates elements to the element list.
+     * The value of the property after the change is made.
+     *
+     * @type {!pentaho.type.Value}
+     */
+    set newValue(valueSpec) {
+      this.set(valueSpec);
+    },
+
+    /**
+     * Adds, removes, and/or updates elements to the element list.
      *
      * The element or elements specified in argument `fragment`
      * are converted to the list's element class.
@@ -119,36 +161,49 @@ define([
     /**
      * @inheritdoc
      */
-    apply: function(propertyValue) {
-      var changes = this.changes.slice();
+    apply: function(list) {
+      return this._apply(list, 0);
+    },
+
+    /**
+     * Applies a subset of the changes to a list.
+     *
+     * This method is used for computing the future value of the list incrementally.
+     *
+     * @param {!pentaho.type.List} [list=this.owner] - The list that will be modified.
+     * @param {number} [startingFromIdx=0] - The index of the first change to be considered
+     * @return {!pentaho.type.List} list - The modified list.
+     * @private
+     * @see pentaho.type.changes.ListChangeset#newValue
+     */
+    _apply: function(list, startingFromIdx) {
+      var changes = this._changes;
+      if(!list) list = this.owner;
 
       // Ignore changes until the last clear
-      var idxLastClear = changes.reduce(function(memo, change, idx) {
+      var lastClearIdx = changes.reduce(function(memo, change, idx) {
         return change.type === "clear" ? idx : memo;
-      }, undefined);
-      changes = changes.slice(idxLastClear);
+      }, startingFromIdx);
+      changes = changes.slice(lastClearIdx);
 
       // mutate list
       changes.forEach(function(change) {
-        change.apply(propertyValue);
+        change.apply(list);
       });
 
-      return propertyValue;
+      // discard the changes
+      if(list === this.owner) this.clearChanges();
+
+      return list;
     },
     //endregion
 
     //region protected methods
-    /**
-     * @inheritdoc
-     */
-    _commit: function() {
-      this.apply(this._oldValue);
-    },
 
     /**
      * Decomposes the modifications into a set of operations and
-     * populates [#changes]{@link pentaho.type.changes.ListChange#_changes} with the relevant
-     * [Operation]{@link pentaho.type.changes.Operation} objects.
+     * populates [#changes]{@link pentaho.type.changes.ListChangeset#_changes} with the relevant
+     * [OwnedChange]{@link pentaho.type.changes.OwnedChange} objects.
      *
      * @param {any|Array} fragment - The element or elements to set.
      * @param {boolean} add
@@ -158,7 +213,7 @@ define([
      * @private
      */
     _set: function(fragment, add, update, remove, index) {
-      var list = this.oldValue,
+      var list = this.newValue, // calculate relative the last change
         elems = list._elems,
         keys = list._keys,
         addKeys = this._addKeys,
@@ -224,7 +279,7 @@ define([
      * @private
      */
     _remove: function(fragment) {
-      var list = this.oldValue,
+      var list = this.newValue,
         remElems = Array.isArray(fragment) ? fragment : [fragment],
         removeKeys = this._removeKeys,
         L = remElems.length,
@@ -243,7 +298,7 @@ define([
     _removeAt: function(start, count) {
       if(count < 0) return; // noop
 
-      var list = this.oldValue;
+      var list = this.newValue;
 
       if(count == null) count = 1;
 
@@ -259,7 +314,7 @@ define([
         this._removeKeys[elem.key] = elem;
       }, this);
 
-      this.changes.push(new RemoveAt(removed, start));
+      this._addChange(new RemoveAt(removed, start));
     },
 
     /**
@@ -272,7 +327,7 @@ define([
      * @private
      */
     _sort: function(comparer) {
-      this.changes.push(new Sort(comparer));
+      this._addChange(new Sort(comparer));
     },
 
     /**
@@ -289,7 +344,7 @@ define([
     _insertOne: function(elem, index, key) {
       if(!elem) return;
       this._addKeys[key] = elem;
-      this.changes.push(new Add(elem, index, key));
+      this._addChange(new Add(elem, index, key));
     },
 
     /**
@@ -304,23 +359,44 @@ define([
      */
     _removeOne: function(elem, key) {
       this._removeKeys[key] = elem;
-      this.changes.push(new RemoveOne(elem, key));
+      this._addChange(new RemoveOne(elem, key));
     },
 
     /**
      * Creates an operation that updates an element in the list,
      * and appends that operation to the list of changes.
-     * 
-     * In an `update` operation, the reference to the element does not change, but its contents does.
+     *
+     * In an `update` operation, the reference to the element does not change, but its content does.
      *
      * @param {!pentaho.type.Element} elem - The object (already in the list) that will be updated.
-     * @param {!pentaho.type.Element} other - The object with the content will be used for updating the list.
+     * @param {!pentaho.type.Element} other - The object with the content that will be used for updating the list.
      *
      * @see pentaho.type.changes.Update
      * @private
      */
     _updateOne: function(elem, other) {
-      this.changes.push(new Update(elem, other));
+      this._addChange(new Update(elem, other));
+    },
+
+    /**
+     * Creates an operation that removes all elements in the list,
+     * and appends that operation to the list of changes.
+     *
+     * @see pentaho.type.changes.Clear
+     * @private
+     */
+    _clear: function() {
+      this._addChange(new Clear());
+    },
+
+    /**
+     * Appends a change to this changeset.
+     *
+     * @param {!pentaho.type.changes.OwnedChange} change
+     * @private
+     */
+    _addChange: function(change) {
+      this._changes.push(change);
     }
     //endregion
 
