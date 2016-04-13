@@ -15,91 +15,75 @@
  */
 
 define([
-  "./Change"
-], function(Change) {
+  "./Change",
+  "../../util/error"
+], function(Change, error) {
   "use strict";
 
-  /**
-   * @name Changeset
-   * @memberOf pentaho.type.changes
-   * @class
-   * @extends pentaho.type.changes.Change
-   * @amd pentaho/type/changes/Changeset
-   * @abstract
-   *
-   * @classDesc Class that describes a set of modifications to an object.
-   *
-   * @constructor
-   * @description Creates an instance.
-   *
-   * @param {!pentaho.type.Value} owner - The [value]{@link pentaho.type.Value} associated with this change.
-   */
   return Change.extend("pentaho.type.changes.Changeset", /** @lends pentaho.type.changes.Changeset# */{
-    constructor: function(owner) {
-      this._owner = owner;
-      this._newValue = undefined;
-      this._oldValue = undefined;
-    },
-
 
     /**
-     * The [value object]{@linkplain pentaho.type.Value} associated with this changeset.
+     * @alias Changeset
+     * @memberOf pentaho.type.changes
+     * @class
+     * @extends pentaho.type.changes.Change
+     * @amd pentaho/type/changes/Changeset
+     * @abstract
      *
-     * @type {!pentaho.type.Value}
-     * @readonly
+     * @classDesc The `Changeset` class describes a set of changes occurring in a structured value,
+     * the [owner]{@link pentaho.type.changes.Changeset#owner} value.
+     *
+     * A changeset is a container for a set of
+     * [PrimitiveChange]{@link pentaho.type.changes.PrimitiveChange} instances.
+     *
+     * @constructor
+     * @description Creates an empty `Changeset` for a given owner value.
+     *
+     * @param {!pentaho.type.UStructuredValue} owner - The structured value where the changes take place.
+     */
+    constructor: function(owner) {
+
+      if(!owner) throw error.argRequired("owner");
+
+      this._owner = owner;
+    },
+
+    /**
+     * Gets the structured value where the changes take place.
+     *
+     * @type {!pentaho.type.UStructuredValue}
+     * @readOnly
      */
     get owner() {
       return this._owner;
     },
 
     /**
-     * Asserts if this changeset contains any defined changes.
+     * Gets a value that indicates if there are any changes.
      *
-     * @return {boolean} `true` if at least one change is defined, `false` otherwise.
-     * @abstract
+     * @type {boolean}
+     * @readOnly
      */
-    hasChanges: function() {
+    get hasChanges() {
       return false;
     },
 
     /**
-     * Removes all changes in this changeset.
+     * Removes all changes.
      */
     clearChanges: function() {
     },
 
-
     /**
-     * A preview of the value of the object after the changes are made.
+     * Applies the contained changes to the owner value or, alternatively, to a given value.
      *
-     * @type {!pentaho.type.Value}
-     * @readonly
-     */
-    get newValue() {
-      return this._newValue;
-    },
-
-    /**
-     * The value of the object before the changes are made.
+     * @param {pentaho.type.UStructuredValue} [target] - The value to which changes are applied.
      *
-     * @type {!pentaho.type.Value}
-     * @readonly
-     */
-    get oldValue() {
-      return this._oldValue;
-    },
-
-    /**
-     * Modifies the value of the provided object.
+     * When unspecified, defaults to {@link pentaho.type.changes.Changeset#owner}.
      *
-     * @method
-     * @param {!pentaho.type.Value} value - The object to be modified.
      * @abstract
      */
-    apply: function(value){
-
+    apply: function(target) {
     }
-
   });
-
 });

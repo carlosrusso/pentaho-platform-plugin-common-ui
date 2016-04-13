@@ -15,44 +15,52 @@
  */
 
 define([
-  "./OwnedChange"
-], function(OwnedChange) {
+  "./PrimitiveChange"
+], function(PrimitiveChange) {
   "use strict";
 
-  /**
-   * @name Update
-   * @memberOf pentaho.type.changes
-   * @class
-   * @extends pentaho.type.changes.OwnedChange
-   * @amd pentaho/type/changes/Update
-   *
-   * @classDesc Describes an operation that updates an element in a list.
-   * In an `update` operation, the reference to the element does not change, but its content does.
-   *
-   * @constructor
-   * @description Creates an instance.
-   *
-   * @param {!pentaho.type.Element} elem - The object (already in the list) that will be updated.
-   * @param {!pentaho.type.Element} other - The object with the content that will be used for updating the list.
-   */
-  return OwnedChange.extend("pentaho.type.changes.Update", /** @lends pentaho.type.changes.Update# */{
+  return PrimitiveChange.extend("pentaho.type.changes.Update", /** @lends pentaho.type.changes.Update# */{
 
+    /**
+     * @alias Update
+     * @memberOf pentaho.type.changes
+     * @class
+     * @extends pentaho.type.changes.PrimitiveChange
+     * @amd pentaho/type/changes/Update
+     *
+     * @classDesc Describes an operation that updates an element in a list.
+     * In an `update` operation, the reference to the element does not change, but its content does.
+     *
+     * This type of change is always part of a {@link pentaho.type.changes.ListChangeset}.
+     *
+     * @constructor
+     * @description Creates an instance.
+     *
+     * @param {!pentaho.type.Element} elem - The object (already in the list) that will be updated.
+     * @param {!pentaho.type.Element} other - The object with the content that will be used for updating the list.
+     */
     constructor: function(elem, other) {
       this.elem = elem;
       this.other = other;
     },
 
     /**
-     * @inheritdoc
+     * Gets the type of change.
+     *
+     * @type {string}
+     * @readonly
+     * @default "update"
      */
     get type() {
       return "update";
     },
 
     /**
-     * @inheritdoc
+     * Applies the change to a list value.
+     *
+     * @param {!pentaho.type.List} target - The list to apply the change on.
      */
-    apply: function(list) {
+    apply: function(target) {
       // TODO
       this.elem.configure(this.other);
     }
