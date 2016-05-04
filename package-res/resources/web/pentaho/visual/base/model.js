@@ -19,6 +19,7 @@ define([
   "pentaho/data/filter",
   "pentaho/util/object",
   "pentaho/util/error",
+  "pentaho/util/fun",
   "pentaho/lang/UserError",
   "./types/selectionModes",
 
@@ -34,7 +35,7 @@ define([
 
   "pentaho/i18n!type"
 ], function(complexFactory, Event, filter, O,
-            error, UserError,
+            error, F, UserError,
             selectionModes,
             WillSelect, DidSelect, RejectedSelect,
             WillExecute, DidExecute, RejectedExecute,
@@ -250,8 +251,7 @@ define([
                   if(typeof f === "string" && selectionModes.hasOwnProperty(f))
                     return selectionModes[f];
 
-                  // TODO: must default to eval if string
-                  return f;
+                  return F.as(f);
                 }
               },
               value: selectionModes.REPLACE,
