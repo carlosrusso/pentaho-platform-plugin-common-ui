@@ -69,5 +69,24 @@ define([
         }).toThrow(errorMatch.argRequired("value"));
       });
     });
+
+    describe("#toJSON()", function() {
+      var PentahoFun;
+      var testFun = function(foo) { return foo; };
+
+      beforeEach(function () {
+        PentahoFun = functionFactory(new Context());
+      });
+
+      it("should return the function's code as a string", function() {
+        var fun = new PentahoFun(testFun);
+        expect(fun.toJSON()).toBe(testFun.toString());
+      });
+
+      it("should return `null` if the function is native", function() {
+        var fun = new PentahoFun(String);
+        expect(fun.toJSON()).toBe(null);
+      });
+    });
   }); // pentaho.type.Function
 });

@@ -194,6 +194,24 @@ define([
         return this._value.toString();
       },
 
+      /**
+       * Determines if a given value, of the same type, represents the same entity with the same content.
+       *
+       * The given value **must** be of the same concrete type (or the result is undefined).
+       *
+       * If two values are equal, they must have an equal [key]{@link pentaho.type.Simple#key},
+       * [value]{@link pentaho.type.Simple#value}, [formatted value]{@link pentaho.type.Simple#formatted}.
+       *
+       * @param {!pentaho.type.Simple} other - A simple value to test for equality.
+       * @return {boolean} `true` if the given simple value is equal to this one, `false`, otherwise.
+       */
+      equalsContent: function(other) {
+        if(!this.equals(other)) return false;
+
+        // TODO: generic metadata
+        return this._value === other._value && this._formatted === other._formatted;
+      },
+
       //region configuration
       /**
        * Configures this simple value with a given configuration.
@@ -249,26 +267,59 @@ define([
       },
       //endregion
 
+      //region serialization
       toSpecInContext: function(keyArgs) {
         if(!keyArgs) keyArgs = {};
 
         var addFormatted = !keyArgs.omitFormatted && !!this._formatted;
         var includeType = keyArgs.includeType;
+        var value;
+        if(keyArgs.isJson) {
+          value = this._toJSONValue(keyArgs);
+          // Failed?
+          if(value == null) return null;
+
+        } else {
+          value = this._value;
+        }
+
+        // Plain objects cannot be output without cell format or would not be recognized
+        // properly by the constructor code.
+        var isPlainObject = (value instanceof Object) && (value.constructor === Object);
 
         // Don't need a cell/object spec?
-        if(!(addFormatted || includeType))
-          return this._value;
+        if(!(isPlainObject || addFormatted || includeType))
+          return value;
 
         // Need one. Ensure _ is the first property
         /*jshint laxbreak:true*/
         var spec = includeType
-            ? {_: this.type.toRefInContext(keyArgs), v: this._value}
-            : {v: this._value};
+            ? {_: this.type.toRefInContext(keyArgs), v: value}
+            : {v: value};
 
         if(addFormatted) spec.f = this._formatted;
 
         return spec;
       },
+
+      /**
+       * Converts the [value]{@link pentaho.type.Simple#value} of the simple instance
+       * to a JSON-compatible representation.
+       *
+       * The default implementation returns [value]{@link pentaho.type.Simple#value} itself.
+       * Override to implement a custom JSON format for this simple value type.
+       *
+       * @param {!Object} keyArgs - The keyword arguments object.
+       * Please see the documentation of subclasses for information on additional, supported keyword arguments.
+       *
+       * @return {UJsonValue} A JSON-compatible representation of value.
+       *
+       * @protected
+       */
+      _toJSONValue: function(keyArgs) {
+        return this._value;
+      },
+      //endregion
 
       type: /** pentaho.type.Simple.Type# */{
         id: module.id,

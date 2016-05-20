@@ -15,6 +15,7 @@
  */
 define([
   "pentaho/visual/base/View",
+  "pentaho/visual/base/types/selectionModes",
   "cdf/lib/CCC/def",
   "cdf/lib/CCC/pvc",
   "cdf/lib/CCC/cdo",
@@ -22,15 +23,16 @@ define([
   "../_axes/Axis",
   "../util",
   "pentaho/util/object",
+  "pentaho/util/logger",
   "pentaho/data/filter",
   "pentaho/visual/color/utils",
   "pentaho/visual/color/paletteRegistry",
   "pentaho/data/TableView",
   "./ViewDemo",
   "pentaho/i18n!view"
-], function(View,
+], function(View, selectionModes,
             def, pvc, cdo, pv, Axis,
-            util, O, filter, visualColorUtils, visualPaletteRegistry,
+            util, O, logger, filter, visualColorUtils, visualPaletteRegistry,
             DataView, ViewDemo, bundle) {
 
   "use strict";
@@ -221,8 +223,8 @@ define([
     //region Helpers
 
     /** @inheritdoc */
-    _selectionChanged: function(newSelectionFilter, previousSelectionFilter) {
-      var dataFilter = newSelectionFilter; // || this.model.getv("selectionFilter") || new filter.Or();
+    _selectionChanged: function(newSelectionFilter) {
+      var dataFilter = newSelectionFilter;
       var selectedItems = dataFilter.apply(this.model.getv("data"));
 
       // Get information on the axes
@@ -1267,7 +1269,16 @@ define([
         .setData(this._dataView.toJsonCda())
         .render();
 
-      this._hackedRender();
+      this._updateSelections();
+    },
+
+    _updateSelections: function() {
+      this._selectionChanged(this.model.getv("selectionFilter"));
+      try {
+        this._chart.updateSelections();
+      } catch(e){
+        logger.log("Error while calling _chart.updateSelections: " + e.message);
+      }
     },
 
     //region SELECTION
@@ -1324,7 +1335,10 @@ define([
 
 
       var selectionFilter = new filter.Or(operands);
-      this.model.selectAction(selectionFilter);
+      var keyArgs = {};
+
+      if(operands && operands.length === 0) keyArgs.selectionMode = selectionModes.REPLACE;
+      this.model.selectAction(selectionFilter, keyArgs);
 
       // Explicitly cancel CCC's native selection handling.
       return [];

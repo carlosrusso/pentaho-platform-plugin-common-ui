@@ -17,14 +17,15 @@ define([
   "module",
   "./simple",
   "../util/fun",
+  "../util/logger",
   "../i18n!types"
-], function(module, simpleFactory, F, bundle) {
+], function(module, simpleFactory, F, logger, bundle) {
 
-  // Cannot use strict here because of the evil eval, below...
+  "use strict";
+
+  var NATIVE_CODE = "[native code]";
 
   return function(context) {
-
-    "use strict";
 
     var Simple = context.get(simpleFactory);
 
@@ -47,6 +48,20 @@ define([
        * @type function
        * @readonly
        */
+
+      //region serialization
+      _toJSONValue: function(keyArgs) {
+        var code = String(this._value);
+        if(code.indexOf(NATIVE_CODE) > 0) {
+          logger.warn(bundle.structured.errors.json.cannotSerializeNativeFunction);
+
+          // Indicate serialization failure.
+          code = null;
+        }
+
+        return code;
+      },
+      //endregion
 
       type: {
         id: module.id,

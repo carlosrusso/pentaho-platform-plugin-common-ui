@@ -92,11 +92,17 @@ define([
       if(arg.optional(keyArgs, "isRoot"))
         O.setConst(this, "root", this);
 
+      // ----
       // Block inheritance, with default values
-      this._id         = null;
+
+      // Don't use inherited property definition which may be writable false
+      Object.defineProperty(this, "_id", {value: null, writable: true});
+
       this._shortId    = undefined;
       this._styleClass = null;
-      this._hasDescendants = false;
+
+      // Don't use inherited property definition which may be writable false
+      Object.defineProperty(this, "_hasDescendants", {value: false, writable: true});
     },
 
     /**
@@ -835,6 +841,9 @@ define([
      *
      * Please see the documentation of subclasses for information on additional, supported keyword arguments.
      *
+     * @param {?boolean} [keyArgs.isJson=false] - Generates a JSON-compatible specification.
+     * Attributes which don't have a JSON-compatible specification are omitted.
+     *
      * @return {!pentaho.type.spec.ITypeProto} A specification of this type.
      *
      * @see pentaho.type.Type#toSpecInContext
@@ -873,6 +882,25 @@ define([
     },
 
     /**
+     * Creates a JSON specification that describes this type.
+     *
+     * Attributes which don't have a JSON-compatible specification are omitted.
+     * Specifically, attributes with a function value are not supported.
+     *
+     * This method simply calls {@link @see pentaho.type.Instance#toSpec} with argument `keyArgs.isJson` as `true`
+     * and exists for seamless integrations with JavaScript's
+     * [JSON.stringify](https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
+     * method.
+     *
+     * @see pentaho.type.Instance#toSpec
+     *
+     * @return {UJsonValue} A JSON-compatible specification.
+     */
+    toJSON: function() {
+      return this.toSpec({isJson: true});
+    },
+
+    /**
      * Fills the given specification with this type's attributes' local values,
      * and returns whether any attribute was actually added.
      *
@@ -895,7 +923,7 @@ define([
      */
     _fillSpecInContext: function(spec, keyArgs) {
       var any = false;
-      //var isJson = keyArgs.isJson;
+      var isJson = keyArgs.isJson;
 
       if(this._labelSet && O.hasOwn(this, "_label")) {
         any = true;
@@ -921,9 +949,11 @@ define([
 
       var viewInfo = O.getOwn(this, "_view");
       if(viewInfo !== undefined) { // can be null
-        any = true;
         var view = viewInfo && viewInfo.value;
-        spec.view = view; // view && isJson ? String(view) : view;
+        if(!view || !isJson || !F.is(view)) {
+          any = true;
+          spec.view = view;
+        }
       }
 
       return any;
