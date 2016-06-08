@@ -743,8 +743,8 @@ define([
        * @readonly
        */
       get inheritedStyleClasses() {
-        /* istanbul ignore next: not implemented yet */
-        throw error.notImplemented("Implement me!");
+        // NOTE: temporary implementation
+        return this._styleClass ? [this._styleClass] : [];
       },
       //endregion
 

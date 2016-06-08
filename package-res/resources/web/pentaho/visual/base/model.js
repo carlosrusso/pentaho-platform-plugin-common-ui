@@ -322,9 +322,35 @@ define([
               name: "doExecute",
               type: "function"
             }
-          ]
+          ],
+
+        /**
+         * Calls a function for each defined visual role property type.
+         *
+         * A visual role property type is a property type whose
+         * [value type]{@link pentaho.type.Property.Type#type} is a subtype of
+         * [Mapping]{@link pentaho.visual.role.Mapping}.
+         *
+         * @param {function(pentaho.type.Property.Type, number, pentaho.type.Complex) : boolean?} f
+         * The mapping function. Return `false` to break iteration.
+         *
+         * @param {Object} [x] The JS context object on which `f` is called.
+         *
+         * @return {pentaho.visual.base.Model} This object.
+         */
+        eachVisualRole: function(f, x) {
+          var j = 0;
+          var mappingType = Mapping.type;
+          this.each(function(propType) {
+            if(propType.type.isSubtypeOf(mappingType) &&
+               f.call(x, propType, j++, this) === false) {
+              return false;
+            }
+          }, this);
+          return this;
         }
-      })
+      }
+    })
       .implement({type: bundle.structured});
 
     return Model;
