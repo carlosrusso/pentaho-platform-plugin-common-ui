@@ -340,14 +340,23 @@ define([
          */
         eachVisualRole: function(f, x) {
           var j = 0;
-          var mappingType = Mapping.type;
           this.each(function(propType) {
-            if(propType.type.isSubtypeOf(mappingType) &&
-               f.call(x, propType, j++, this) === false) {
+            if(this.isVisualRole(propType.type) && f.call(x, propType, j++, this) === false) {
               return false;
             }
           }, this);
           return this;
+        },
+
+        /**
+         * Gets a value that indicates if a given property type is a subtype of
+         * [Mapping]{@link pentaho.visual.role.Mapping.Type}.
+         *
+         * @param {!pentaho.type.Type} type - The type to test.
+         * @return {boolean} `true` if `type` is a mapping type; or `false`, otherwise.
+         */
+        isVisualRole: function(type) {
+          return type.isSubtypeOf(Mapping.type);
         }
       }
     })
