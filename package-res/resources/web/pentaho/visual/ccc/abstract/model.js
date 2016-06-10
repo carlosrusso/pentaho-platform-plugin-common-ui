@@ -21,7 +21,7 @@ define([
   "./types/fontStyle",
   "./types/sides",
   "./types/labelsOption",
-  "./theme/model"
+  "../theme/model"
 ], function(abstractModelFactory, bundle, colorFactory, backgroundFillFactory, fontStyleFactory,
     sidesFactory, labelsOptionFactory) {
 
