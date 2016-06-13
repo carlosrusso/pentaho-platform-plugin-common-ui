@@ -312,17 +312,17 @@ define([
                 if(typeof f === "string" && selectionModes.hasOwnProperty(f))
                   return selectionModes[f];
 
-                  return F.as(f);
-                }
-              },
-              value: selectionModes.REPLACE,
-              isRequired: true
+                return F.as(f);
+              }
             },
-            {
-              name: "doExecute",
-              type: "function"
-            }
-          ],
+            value: selectionModes.REPLACE,
+            isRequired: true
+          },
+          {
+            name: "doExecute",
+            type: "function"
+          }
+        ],
 
         /**
          * Calls a function for each defined visual role property type.

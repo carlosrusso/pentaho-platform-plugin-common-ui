@@ -40,7 +40,8 @@ define([
             name: "measures", //VISUAL_ROLE
             type: {
               props: {attributes: {isRequired: true}}
-            }
+            },
+            ordinal: 7
           },
           {
             name: "labelsOption",
