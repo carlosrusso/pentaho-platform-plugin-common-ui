@@ -736,7 +736,6 @@ define([
         this._styleClass = nonEmptyString(value);
       },
 
-      // TODO: implement inheritedStyleClasses
       /**
        * Gets the style classes of this and any base types.
        *
