@@ -15,6 +15,7 @@
  */
 define([
   "pentaho/lang/Base",
+  "./events/DidCreate",
   "./events/WillUpdate",
   "./events/DidUpdate",
   "./events/RejectedUpdate",
@@ -23,7 +24,7 @@ define([
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
-], function(Base, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
+], function(Base, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
             filter, error, logger, Promise) {
 
   "use strict";
@@ -48,23 +49,12 @@ define([
    * @description Initializes a `View` instance.
    *
    * @constructor
-   * @param {HTMLElement} element - The DOM element where the visualization should render.
-   * An error is thrown if this is not a valid DOM element.
    * @param {pentaho.visual.base.Model} model - The base visualization `Model`.
-   *
-   * @throws {pentaho.lang.ArgumentInvalidError} When `element` is not an HTML DOM element.
    */
 
   var View = Base.extend(/** @lends pentaho.visual.base.View# */{
 
-    constructor: function(element, model) {
-      // var element = document.createElement("div");
-      // element.className = "render_output";
-
-      if(!element)
-        throw error.argRequired("element");
-      if(!isElement(element))
-        throw error.argInvalidType("element", "HTMLElement", typeof element);
+    constructor: function(model) {
 
       if(!model)
         throw error.argRequired("model");
@@ -75,7 +65,7 @@ define([
        * @protected
        * @readonly
        */
-      this._element = element;
+      this._element = null;
 
       /**
        * The model of the visualization.
@@ -115,8 +105,9 @@ define([
      * @fires "rejected:update"
      */
     update: function() {
-      var me = this;
-      var model = this.model;
+      var me = this,
+          model = this.model,
+          isFirstRender = !this._element;
 
       var willUpdate = new WillUpdate(model);
       if(model._hasListeners(willUpdate.type))
@@ -134,6 +125,9 @@ define([
         } else {
           if(model._hasListeners(DidUpdate.type))
             model._emitSafe(new DidUpdate(model));
+
+          if(isFirstRender && model._hasListeners(DidCreate.type))
+            model._emitSafe(new DidCreate(model, me._element));
 
           resolve();
         }
@@ -155,8 +149,11 @@ define([
       try {
         var validationErrors = this._validate();
         if(!validationErrors) {
+          if(!this._element) this.prepare();
+
           this._update();
           result = ActionResult.fulfill();
+
         } else {
           var error = Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors;
           result = ActionResult.reject(error);
@@ -174,6 +171,10 @@ define([
      */
     dispose: function() {
       this._element = null;
+    },
+
+    prepare: function() {
+      this._element = document.createElement("div");
     },
 
     /**
