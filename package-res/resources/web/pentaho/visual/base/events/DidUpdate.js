@@ -18,20 +18,39 @@ define([
 ], function(Event) {
   "use strict";
 
-
+  /**
+   * @name DidUpdate
+   * @memberOf pentaho.visual.base.events
+   * @class
+   * @extends pentaho.lang.Event
+   *
+   * @classDesc This event is emitted when updating the view with
+   * {@link pentaho.visual.base.Model#update|Model#update} occurs without any failures.
+   *
+   * @constructor
+   * @description Creates a `DidUpdate` event.
+   *
+   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   */
   return Event.extend("pentaho.visual.base.events.DidUpdate",
-    {
+    /** @lends pentaho.visual.base.events.DidUpdate# */{
 
       constructor: function(source) {
         this.base("did:update", source, false);
       }
 
-    }, {
+    }, /** @lends pentaho.visual.base.events.DidUpdate */{
 
-    
+    /**
+     * Gets the event type.
+     *
+     * @type string
+     * @readonly
+     */
     get type() {
       return "did:update";
     }
+
   });
 
 });

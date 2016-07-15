@@ -19,18 +19,48 @@ define([
 ], function(Event, mixinError) {
   "use strict";
 
-  return Event.extend("pentaho.visual.base.events.RejectedUpdate", {
+  /**
+   * @name RejectedUpdate
+   * @memberOf pentaho.visual.base.events
+   * @class
+   * @extends pentaho.lang.Event
+   * @mixes pentaho.lang.mixins.mixinError
+   *
+   * @classDesc This event is emitted when any rejection occurs while updating
+   * the view with {@link pentaho.visual.base.Model#update|Model#update}.
+   *
+   * A rejection can be one of the following:
+   *  - the event {@link pentaho.type.events.WillUpdate|"will:update"} was canceled
+   *  - an error occurred while validating the view
+   *  - an error occurred while updating the view
+   *
+   * @constructor
+   * @description Creates a `RejectedUpdate` event.
+   *
+   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   * @param {!Error|pentaho.lang.UserError} error - The error of a rejected
+   * {@link pentaho.lang.ActionResult|ActionResult}.
+   */
+  return Event.extend("pentaho.visual.base.events.RejectedUpdate",
+    /** @lends pentaho.visual.base.events.RejectedUpdate# */{
 
       constructor: function(source, error) {
         this.base("rejected:update", source, false);
         this._initError(error);
       }
 
-    }, {
+    }, /** @lends pentaho.visual.base.events.RejectedUpdate */{
 
+      /**
+       * Gets the event type.
+       *
+       * @type string
+       * @readonly
+       */
       get type() {
         return "rejected:update";
       }
+
     }).implement(mixinError);
 
 });

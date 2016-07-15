@@ -101,12 +101,18 @@ define([
     /**
      * Orchestrates the rendering of the visualization.
      *
-     * This method executes [_update]{@link pentaho.visual.base.View#_update}
+     * Executes the will/did/rejected event loop associated with an update in a visualization.
+     *
+     * This method executes [_doUpdate]{@link pentaho.visual.base.View#_doUpdate}
      * asynchronously and is meant to be invoked by the container.
      *
      * @return {Promise} A promise that is fulfilled when the visualization
      * is completely rendered. If the visualization is in an invalid state, the promise
      * is immediately rejected.
+     *
+     * @fires "will:update"
+     * @fires "did:update"
+     * @fires "rejected:update"
      */
     update: function() {
       var me = this;
@@ -135,6 +141,15 @@ define([
       });
     },
 
+    /**
+     * Updates a visualization.
+     *
+     * If the visualization is valid, the visualization element will be created on the first update
+     * and proceed with the visualization update, otherwise it will be rejected and prevent the update.
+     *
+     * @return {pentaho.lang.ActionResult} The result object.
+     * @protected
+     */
     _doUpdate: function() {
       var result;
       try {

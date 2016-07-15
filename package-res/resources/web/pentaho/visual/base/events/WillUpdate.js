@@ -18,17 +18,41 @@ define([
 ], function(Event) {
   "use strict";
 
-  return Event.extend("pentaho.visual.base.events.WillUpdate", {
+  /**
+   * @name WillUpdate
+   * @memberOf pentaho.visual.base.events
+   * @class
+   * @extends pentaho.lang.Event
+   *
+   * @classDesc This event is emitted when the view is about to be updated.
+   * The listeners of `will:update` are allowed to:
+   * - cancel the event
+   * - make changes to the visualization {pentaho.visual.base.Model|Model}
+   *
+   * @constructor
+   * @description Creates a `WillUpdate` event.
+   *
+   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   */
+  return Event.extend("pentaho.visual.base.events.WillUpdate",
+    /** @lends pentaho.visual.base.events.WillUpdate# */{
 
       constructor: function(source) {
         this.base("will:update", source, true);
       }
 
-    }, {
+    }, /** @lends pentaho.visual.base.events.WillUpdate */{
 
+      /**
+       * Gets the event type.
+       *
+       * @type string
+       * @readonly
+       */
       get type() {
         return "will:update";
       }
+
     });
 
 });
