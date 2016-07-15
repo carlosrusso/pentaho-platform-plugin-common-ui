@@ -15,12 +15,16 @@
  */
 define([
   "pentaho/lang/Base",
-  "pentaho/lang/Event",
+  "./events/WillUpdate",
+  "./events/DidUpdate",
+  "./events/RejectedUpdate",
+  "pentaho/lang/ActionResult",
   "pentaho/data/filter",
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
-], function(Base, Event, filter, error, logger, Promise) {
+], function(Base, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
+            filter, error, logger, Promise) {
 
   "use strict";
 
@@ -54,6 +58,9 @@ define([
   var View = Base.extend(/** @lends pentaho.visual.base.View# */{
 
     constructor: function(element, model) {
+      // var element = document.createElement("div");
+      // element.className = "render_output";
+
       if(!element)
         throw error.argRequired("element");
       if(!isElement(element))
@@ -94,27 +101,57 @@ define([
     /**
      * Orchestrates the rendering of the visualization.
      *
-     * This method executes [_render]{@link pentaho.visual.base.View#_render}
+     * This method executes [_update]{@link pentaho.visual.base.View#_update}
      * asynchronously and is meant to be invoked by the container.
      *
      * @return {Promise} A promise that is fulfilled when the visualization
      * is completely rendered. If the visualization is in an invalid state, the promise
      * is immediately rejected.
      */
-    render: function() {
+    update: function() {
       var me = this;
+      var model = this.model;
+
+      var willUpdate = new WillUpdate(model);
+      if(model._hasListeners(willUpdate.type))
+        model._emitSafe(willUpdate);
+
       return new Promise(function(resolve, reject) {
-        try {
-          var validationErrors = me._validate();
-          if(!validationErrors) {
-            Promise.resolve(me._render()).then(resolve, reject);
-          } else {
-            reject(validationErrors);
-          }
-        } catch(e) {
-          reject(e.message);
+        var result = willUpdate.isCanceled ? ActionResult.reject(willUpdate.error)
+                                           : me._doUpdate();
+
+        if(result.error) {
+          if(model._hasListeners(RejectedUpdate.type))
+            model._emitSafe(new RejectedUpdate(model, result.error));
+
+          reject(result.error);
+        } else {
+          if(model._hasListeners(DidUpdate.type))
+            model._emitSafe(new DidUpdate(model));
+
+          resolve();
         }
+
       });
+    },
+
+    _doUpdate: function() {
+      var result;
+      try {
+        var validationErrors = this._validate();
+        if(!validationErrors) {
+          this._update();
+          result = ActionResult.fulfill();
+        } else {
+          var error = Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors;
+          result = ActionResult.reject(error);
+        }
+
+      } catch(e) {
+        result = ActionResult.reject(e.message);
+      }
+
+      return result;
     },
 
     /**
@@ -175,8 +212,8 @@ define([
      * @protected
      * @abstract
      */
-    _render: /* istanbul ignore next: placeholder method */ function() {
-      throw error.notImplemented("_render");
+    _update: /* istanbul ignore next: placeholder method */ function() {
+      throw error.notImplemented("_update");
     },
 
     /**
@@ -185,12 +222,12 @@ define([
      *
      * Subclasses of `pentaho.visual.base.View` are expected to override this method to
      * implement a fast and cheap resizing of the visualization.
-     * By default, this method invokes [_render]{@link pentaho.visual.base.View#_render}.
+     * By default, this method invokes [_update]{@link pentaho.visual.base.View#_update}.
      *
      * @protected
      */
     _resize: /* istanbul ignore next: placeholder method */ function() {
-      this._render();
+      this._update();
     },
 
     /**
@@ -200,13 +237,13 @@ define([
      * Subclasses of `pentaho.visual.base.View` are expected to override this method
      * with an implementation that
      * updates the selection state of the items displayed by this visualization.
-     * By default, this method invokes [_render]{@link pentaho.visual.base.View#_render}.
+     * By default, this method invokes [_update]{@link pentaho.visual.base.View#_update}.
      *
      * @protected
      */
     _selectionChanged:
     /* istanbul ignore next: placeholder method */function(newSelectionFilter, previousSelectionFilter) {
-      this._render();
+      this._update();
     },
 
     /**
@@ -220,14 +257,14 @@ define([
      * [height]{@link pentaho.visual.base.Model.Type#height} change,
      * - [_selectionChanged]{@link pentaho.visual.base.View#_selectionChanged} when the property
      * [selectionFilter]{@link pentaho.visual.base.Model.Type#selectionFilter} changes
-     * - [_render]{@link pentaho.visual.base.View#_render} when any other property changes.
+     * - [_update]{@link pentaho.visual.base.View#_update} when any other property changes.
      *
      * Subclasses of `pentaho.visual.base.View` can override this method to
      * extend the set of fast render methods.
      *
      * @see pentaho.visual.base.View#_resize
      * @see pentaho.visual.base.View#_selectionChanged
-     * @see pentaho.visual.base.View#_render
+     * @see pentaho.visual.base.View#_update
      *
      * @param {!pentaho.type.Changeset} changeset - Map of the properties that have changed.
      *
@@ -245,7 +282,7 @@ define([
 
       var fullUpdate = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
       if(fullUpdate) {
-        this.render().then(function() {
+        this.update().then(function() {
           logger.info("Auto-update succeeded!");
         }, function(errors) {
           logger.warn("Auto-update canceled:\n - " +

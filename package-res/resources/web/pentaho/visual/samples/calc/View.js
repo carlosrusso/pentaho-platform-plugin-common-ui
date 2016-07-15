@@ -27,7 +27,7 @@ define([
     },
 
     /** @override */
-    _render: function() {
+    _update: function() {
       var result = this._calculate();
       // TODO: format result
 

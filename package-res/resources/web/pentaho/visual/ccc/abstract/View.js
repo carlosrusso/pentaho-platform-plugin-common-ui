@@ -183,7 +183,7 @@ define([
 
     //region VizAPI implementation
 
-    _render: function() {
+    _update: function() {
       this._dataTable = this.model.data;
 
       // Ensure we have a plain data table

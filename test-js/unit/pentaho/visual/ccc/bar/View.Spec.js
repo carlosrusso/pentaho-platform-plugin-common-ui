@@ -74,7 +74,7 @@ define([
 
       spyOn(view, "_renderCore");
 
-      view.render().then(function() {
+      view.update().then(function() {
         expect(view._renderCore).toHaveBeenCalled();
         done();
       }, done.fail);

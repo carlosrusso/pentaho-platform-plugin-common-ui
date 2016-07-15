@@ -79,55 +79,56 @@ define([
         expect(view._isValid()).toBe(false);
       });
 
-      it("`render()` should invoke `_render` if the view is valid", function(done) {
+      it("`update()` should invoke `_update` if the view is valid", function(done) {
         var DerivedView = View.extend({
-          _render: function(){ return "Rendered"; }
+          _update: function(){ return "Rendered"; }
         });
         var view = new DerivedView(element, model);
 
-        spyOn(view, '_render').and.callThrough();
+        spyOn(view, '_update').and.callThrough();
 
-        view.render().then(function resolved() {
-          expect(view._render).toHaveBeenCalled();
+        view.update().then(function resolved() {
+          expect(view._update).toHaveBeenCalled();
           done();
         }, function rejected() {
           done.fail();
         });
       });
 
-      it("`render()` should not invoke `_render` if the view is invalid", function(done) {
+      it("`update()` should not invoke `_update` if the view is invalid", function(done) {
         var DerivedView = View.extend({
           _validate: function(){ return ["Some error"]; },
-          _render: function(){ return "Rendered"; }
+          _update: function(){ return "Rendered"; }
         });
         var view = new DerivedView(element, model);
 
-        spyOn(view, '_render').and.callThrough();
+        spyOn(view, '_update').and.callThrough();
 
-        view.render().then(function resolved() {
+        view.update().then(function() {
           done.fail();
-        }, function rejected(reason) {
-          expect(reason.join('')).toBe("Some error");
-          expect(view._render).not.toHaveBeenCalled();
+        }, function(reason) {
+          expect(reason.message).toBe("Some error");
+          expect(view._update).not.toHaveBeenCalled();
           done();
         });
 
       });
 
-      it("`render()` should not invoke `_render` if `_validate` throws", function(done) {
+      it("`update()` should not invoke `_update` if `_validate` throws", function(done) {
         var DerivedView = View.extend({
           _validate: function(){ throw new Error("Some error"); },
-          _render: function(){ return "Rendered"; }
+          _update: function(){ return "Rendered"; }
         });
         var view = new DerivedView(element, model);
 
-        spyOn(view, '_render').and.callThrough();
+        spyOn(view, '_update').and.callThrough();
 
-        view.render().then(function resolved() {
+        debugger;
+        view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
-          expect(reason).toBe("Some error");
-          expect(view._render).not.toHaveBeenCalled();
+          expect(reason.message).toBe("Some error");
+          expect(view._update).not.toHaveBeenCalled();
           done();
         });
 
@@ -137,12 +138,12 @@ define([
     });
 
     describe("#_onChange", function(){
-      var view, _resize, _render, _selectionChanged;
+      var view, _resize, _update, _selectionChanged;
       beforeEach(function(){
         view = new View(element, model);
         _resize = spyOn(view, "_resize");
         _selectionChanged = spyOn(view, "_selectionChanged");
-        _render = spyOn(view, "_render");
+        _update = spyOn(view, "_update");
       });
 
       it("triggers #_resize when only 'height' changes", function(){
@@ -150,7 +151,7 @@ define([
 
         expect(_resize).toHaveBeenCalled();
         expect(_selectionChanged).not.toHaveBeenCalled();
-        expect(_render).not.toHaveBeenCalled();
+        expect(_update).not.toHaveBeenCalled();
       });
 
       it("triggers #_resize when only 'width' changes", function(){
@@ -158,7 +159,7 @@ define([
 
         expect(_resize).toHaveBeenCalled();
         expect(_selectionChanged).not.toHaveBeenCalled();
-        expect(_render).not.toHaveBeenCalled();
+        expect(_update).not.toHaveBeenCalled();
       });
 
       it("triggers #_selectionChanged when 'selectionFilter' changes", function(){
@@ -166,7 +167,7 @@ define([
 
         expect(_resize).not.toHaveBeenCalled();
         expect(_selectionChanged).toHaveBeenCalled();
-        expect(_render).not.toHaveBeenCalled();
+        expect(_update).not.toHaveBeenCalled();
       });
 
       it("does not trigger any render method when 'selectionMode' changes", function(){
@@ -174,15 +175,15 @@ define([
 
         expect(_resize).not.toHaveBeenCalled();
         expect(_selectionChanged).not.toHaveBeenCalled();
-        expect(_render).not.toHaveBeenCalled();
+        expect(_update).not.toHaveBeenCalled();
       });
 
-      it("triggers #_render when a property other than 'height', 'width' or 'selectionFilter' changes", function(){
+      it("triggers #_update when a property other than 'height', 'width' or 'selectionFilter' changes", function(){
         model.isInteractive = false;
 
         expect(_resize).not.toHaveBeenCalled();
         expect(_selectionChanged).not.toHaveBeenCalled();
-        expect(_render).toHaveBeenCalled();
+        expect(_update).toHaveBeenCalled();
       });
 
     }); // #_onChange
