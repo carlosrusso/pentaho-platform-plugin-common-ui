@@ -117,7 +117,7 @@ define([
         model._emitSafe(willUpdate);
 
       return new Promise(function(resolve, reject) {
-        var result = willUpdate.isCanceled ? ActionResult.reject(willUpdate.error)
+        var result = willUpdate.isCanceled ? ActionResult.reject(willUpdate.cancelReason)
                                            : me._doUpdate();
 
         if(result.error) {
@@ -327,7 +327,4 @@ define([
 
   return View;
 
-  function isElement(obj) {
-    return typeof HTMLElement === "object" ? obj instanceof HTMLElement : !!(obj && obj.nodeType === 1);
-  }
 });

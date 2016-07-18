@@ -10,10 +10,9 @@ define([
   /*global document:false*/
 
   describe("pentaho/visual/base/View", function() {
-    var element, Model, model;
+    var Model, model;
 
     beforeEach(function() {
-      element = document.createElement("div");
       var dataTableSpec = {
         model: [
           {name: "country", type: "string", label: "Country"},
@@ -38,28 +37,14 @@ define([
 
     describe("the constructor ", function() {
 
-      it("should throw if invoked with less than two arguments", function() {
+      it("should throw if invoked with no arguments", function() {
         expect(function() {
           return new View();
-        }).toThrow(errorMatch.argRequired("element"));
-
-        expect(function() {
-          return new View(element);
         }).toThrow(errorMatch.argRequired("model"));
 
         expect(function() {
-          return new View(element, model);
+          return new View(model);
         }).not.toThrow();
-      });
-
-      it("should throw if the first argument is not a DOM element", function() {
-        [
-          "div", 1, true, {}, []
-        ].forEach(function(elem) {
-          expect(function() {
-            return new View(elem, model);
-          }).toThrow(errorMatch.argInvalidType("element", "HTMLElement", typeof elem));
-        });
       });
 
     });
@@ -67,14 +52,14 @@ define([
     describe("validation: ", function() {
 
       it("should be valid if the model is valid", function(){
-        var view = new View(element, model);
+        var view = new View(model);
         expect(model.validate()).toBeNull(); //Null === no errors
         expect(view._isValid()).toBe(true);
       });
 
       it("should be invalid if the model is invalid", function(){
         var model = new Model();
-        var view = new View(element, model);
+        var view = new View(model);
         expect(model.validate()).not.toBeNull(); //Null === no errors
         expect(view._isValid()).toBe(false);
       });
@@ -83,7 +68,7 @@ define([
         var DerivedView = View.extend({
           _update: function(){ return "Rendered"; }
         });
-        var view = new DerivedView(element, model);
+        var view = new DerivedView(model);
 
         spyOn(view, '_update').and.callThrough();
 
@@ -100,7 +85,7 @@ define([
           _validate: function(){ return ["Some error"]; },
           _update: function(){ return "Rendered"; }
         });
-        var view = new DerivedView(element, model);
+        var view = new DerivedView(model);
 
         spyOn(view, '_update').and.callThrough();
 
@@ -119,7 +104,7 @@ define([
           _validate: function(){ throw new Error("Some error"); },
           _update: function(){ return "Rendered"; }
         });
-        var view = new DerivedView(element, model);
+        var view = new DerivedView(model);
 
         spyOn(view, '_update').and.callThrough();
 
@@ -140,7 +125,7 @@ define([
     describe("#_onChange", function(){
       var view, _resize, _update, _selectionChanged;
       beforeEach(function(){
-        view = new View(element, model);
+        view = new View(model);
         _resize = spyOn(view, "_resize");
         _selectionChanged = spyOn(view, "_selectionChanged");
         _update = spyOn(view, "_update");
