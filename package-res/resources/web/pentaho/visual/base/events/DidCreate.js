@@ -19,8 +19,21 @@ define([
 ], function(Event, error) {
   "use strict";
 
-
-  return Event.extend("pentaho.visual.base.events.DidCreate", {
+  /**
+   * @name DidCreate
+   * @memberOf pentaho.visual.base.events
+   * @class
+   * @extends pentaho.lang.Event
+   *
+   * @classDesc This event is emitted the first time the visualization is updated without any errors.
+   *
+   * @constructor
+   * @description Creates a `DidCreate` event.
+   *
+   * @param {!pentaho.type.Complex} source - The object which is emitting the event.
+   */
+  return Event.extend("pentaho.visual.base.events.DidCreate",
+    /** @lends pentaho.visual.base.events.DidCreate# */{
 
       constructor: function(source, element) {
         if(!element) throw error.argRequired("element");
@@ -28,13 +41,25 @@ define([
         this.base("did:create", source, false);
         this._element = element;
       },
-      
-      get element() {
+
+    /**
+     * Gets the visualization's DOM element created in the
+     * {@link pentaho.visual.base.Model#update|Model#update} loop.
+     *
+     * @return {HTMLElement} The visualization's DOM element.
+     */
+    get element() {
         return this._element;
       }
 
-    }, {
+    }, /** @lends pentaho.visual.base.events.DidCreate */{
 
+      /**
+       * Gets the event type.
+       *
+       * @type string
+       * @readonly
+       */
       get type() {
         return "did:create";
       }
