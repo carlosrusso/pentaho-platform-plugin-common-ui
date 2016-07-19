@@ -25,12 +25,12 @@ define([
    * @extends pentaho.lang.Event
    *
    * @classDesc This event is emitted when updating the view with
-   * {@link pentaho.visual.base.Model#update|Model#update} occurs without any failures.
+   * {@link pentaho.visual.base.Model#update|Model#update} and it occurs without any failures.
    *
    * @constructor
    * @description Creates a `DidUpdate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
    */
   return Event.extend("pentaho.visual.base.events.DidUpdate",
     /** @lends pentaho.visual.base.events.DidUpdate# */{

@@ -32,7 +32,7 @@ define([
    * @constructor
    * @description Creates a `WillUpdate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
    */
   return Event.extend("pentaho.visual.base.events.WillUpdate",
     /** @lends pentaho.visual.base.events.WillUpdate# */{

@@ -37,7 +37,7 @@ define([
    * @constructor
    * @description Creates a `RejectedUpdate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object which is emitting the event.
+   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
    * @param {!Error|pentaho.lang.UserError} error - The error of a rejected
    * {@link pentaho.lang.ActionResult|ActionResult}.
    */

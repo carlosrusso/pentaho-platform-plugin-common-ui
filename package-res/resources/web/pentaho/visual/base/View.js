@@ -93,7 +93,7 @@ define([
      *
      * Executes [_update]{@link pentaho.visual.base.View#_update} asynchronously in
      * the will/did/rejected event loop associated with an update of a visualization,
-     * also creating the visualization DOM element the first time it successfully updates.
+     * and also creates the visualization DOM element the first time it successfully updates.
      *
      * In order to get the visualization DOM element,
      * listen to the {@link pentaho.visual.base.events.DidCreate|"did:create"} event.
@@ -145,7 +145,7 @@ define([
      * Updates a visualization.
      *
      * If the visualization is valid, the visualization element will be created on the first update
-     * and proceed with the visualization update, otherwise it will be rejected and prevent the update.
+     * and proceed with the visualization update; otherwise, it will be rejected and prevent the update.
      *
      * @return {pentaho.lang.ActionResult} The result object.
      * @protected

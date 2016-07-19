@@ -30,7 +30,7 @@ define([
    * @constructor
    * @description Creates a `DidCreate` event.
    *
-   * @param {!pentaho.type.Complex} source - The object which is emitting the event.
+   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
    */
   return Event.extend("pentaho.visual.base.events.DidCreate",
     /** @lends pentaho.visual.base.events.DidCreate# */{
