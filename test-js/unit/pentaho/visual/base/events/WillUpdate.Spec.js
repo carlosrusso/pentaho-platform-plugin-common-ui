@@ -23,14 +23,13 @@ define([
   /* global describe:false, it:false, expect:false, beforeEach:false */
 
   describe("pentaho.visual.base.events.WillUpdate -", function() {
-    var type = "update";
 
     it("should extend Event", function() {
       expect(WillUpdate.prototype instanceof Event).toBe(true);
     });
 
     it("static property type should return full type name", function() {
-      expect(WillUpdate.type).toBe("will:" + type);
+      expect(WillUpdate.type).toBe("will:update");
     });
 
     it("static property type should be read-only", function() {

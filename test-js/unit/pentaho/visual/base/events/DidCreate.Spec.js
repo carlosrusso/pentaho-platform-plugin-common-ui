@@ -23,14 +23,13 @@ define([
   /* global describe:false, it:false, expect:false, beforeEach:false */
 
   describe("pentaho.visual.base.events.DidCreate -", function() {
-    var type = "create";
 
     it("should extend Event", function() {
       expect(DidCreate.prototype instanceof Event).toBe(true);
     });
 
     it("static property type should return full type name", function() {
-      expect(DidCreate.type).toBe("did:" + type);
+      expect(DidCreate.type).toBe("did:create");
     });
 
     it("static property type should be read-only", function() {
@@ -60,6 +59,11 @@ define([
           event.element = "other";
         }).toThrowError(TypeError);
       });
+      
+      it("should not be cancelable", function() {
+        expect(event.isCancelable).toBe(false);
+      });
+      
     });
 
     it("should throw if element parameter is not passed to the constructor", function() {

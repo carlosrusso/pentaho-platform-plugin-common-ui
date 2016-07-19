@@ -112,13 +112,16 @@ define([
           model = this.model,
           isFirstRender = !this._element;
 
-      var willUpdate = new WillUpdate(model);
-      if(model._hasListeners(willUpdate.type))
-        model._emitSafe(willUpdate);
-
       return new Promise(function(resolve, reject) {
-        var result = willUpdate.isCanceled ? ActionResult.reject(willUpdate.cancelReason)
-                                           : me._doUpdate();
+        var willUpdate;
+        if(model._hasListeners(WillUpdate.type)) {
+          willUpdate = new WillUpdate(model);
+          model._emitSafe(willUpdate);
+        }
+
+        var result = willUpdate && willUpdate.isCanceled
+          ? ActionResult.reject(willUpdate.cancelReason)
+          : me._doUpdate();
 
         if(result.error) {
           if(model._hasListeners(RejectedUpdate.type))
@@ -158,7 +161,8 @@ define([
           result = ActionResult.fulfill();
 
         } else {
-          var error = Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors;
+          var error = "View update was rejected:\n - " +
+            (Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors);
           result = ActionResult.reject(error);
         }
 

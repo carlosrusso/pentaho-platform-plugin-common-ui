@@ -34,19 +34,6 @@ define([
       Model = context.get(modelFactory);
       model = new Model(dataSpec);
 
-      listeners = jasmine.createSpyObj('listeners', [
-        'didCreate',
-        'willUpdate',
-        'didUpdate',
-        'rejectedUpdate'
-      ]);
-
-      model.on("will:update", listeners.willUpdate);
-      model.on("did:update", listeners.didUpdate);
-      model.on("rejected:update", listeners.rejectedUpdate);
-
-      model.on("did:create", listeners.didCreate);
-
     });
 
     describe("the constructor ", function() {
@@ -77,12 +64,44 @@ define([
         expect(model.validate()).not.toBeNull(); //Null === no errors
         expect(view._isValid()).toBe(false);
       });
+    });
 
-      it("`update()` should call the `will:update` event listener if the view is valid", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
+    describe("#update", function() {
+      var view;
+
+      var DerivedView = View.extend({
+        _update: function(){ return "Rendered"; }
+      });
+
+      var ValidationErrorView = DerivedView.extend({
+        _validate: function(){ return ["Some error"]; }
+      });
+
+      var UpdateErrorView = View.extend({
+        _update: function(){ throw new Error("Some error"); }
+      });
+
+      beforeEach(function() {
+        listeners = jasmine.createSpyObj('listeners', [
+          'didCreate',
+          'willUpdate',
+          'didUpdate',
+          'rejectedUpdate'
+        ]);
+
+        model.on("will:update", listeners.willUpdate);
+        model.on("did:update", listeners.didUpdate);
+        model.on("rejected:update", listeners.rejectedUpdate);
+
+        model.on("did:create", listeners.didCreate);
+      });
+
+      function expectValidationError(errorMessage, expectedMessage) {
+        expect("View update was rejected:\n - " + expectedMessage).toBe(errorMessage);
+      }
+
+      it("should call the `will:update` event listener if the view is valid", function(done) {
+        view = new DerivedView(model);
 
         view.update().then(function resolved() {
           expect(listeners.willUpdate).toHaveBeenCalled();
@@ -92,13 +111,9 @@ define([
         });
       });
 
-      it("`update()` should call the `did:update` event listener if the view is valid and called `_update",
+      it("should call the `did:update` event listener if the view is valid and called `_update",
         function(done) {
-          var DerivedView = View.extend({
-            _update: function(){ return "Rendered"; }
-          });
-          var view = new DerivedView(model);
-
+          view = new DerivedView(model);
           spyOn(view, '_update').and.callThrough();
 
           view.update().then(function resolved() {
@@ -108,15 +123,10 @@ define([
           }, function rejected() {
             done.fail();
           });
-
-      });
-
-      it("`update()` should call the `will:update` event listener if the view is invalid", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ return ["Some error"]; },
-          _update: function(){ return "Rendered"; }
         });
-        var view = new DerivedView(model);
+
+      it("should call the `will:update` event listener if the view is invalid", function(done) {
+        view = new ValidationErrorView(model);
 
         view.update().then(function resolved() {
           done.fail();
@@ -126,13 +136,9 @@ define([
         });
       });
 
-      it("`update()` should call the `rejected:update` event listener if the view `will:update` event is canceled",
+      it("should call the `rejected:update` event listener if the view `will:update` event is canceled",
         function(done) {
-          var DerivedView = View.extend({
-            _update: function(){ return "Rendered"; }
-          });
-          var view = new DerivedView(model);
-
+          view = new DerivedView(model);
           listeners.willUpdate.and.callFake(function(event) { event.cancel("I was canceled"); });
 
           view.update().then(function resolved() {
@@ -142,14 +148,22 @@ define([
             expect(listeners.rejectedUpdate).toHaveBeenCalled();
             done();
           });
+        });
+
+      it("should call the `rejected:update` event listener if the view is invalid", function(done) {
+        view = new ValidationErrorView(model);
+
+        view.update().then(function resolved() {
+          done.fail();
+        }, function rejected(reason) {
+          expectValidationError(reason.message, "Some error");
+          expect(listeners.rejectedUpdate).toHaveBeenCalled();
+          done();
+        });
       });
 
-      it("`update()` should call the `rejected:update` event listener if the view is invalid", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ return ["Some error"]; },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
+      it("should call the `rejected:update` event listener if `_update` throws", function(done) {
+        view = new UpdateErrorView(model);
 
         view.update().then(function resolved() {
           done.fail();
@@ -160,26 +174,8 @@ define([
         });
       });
 
-      it("`update()` should call the `rejected:update` event listener if `_update` throws", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ throw new Error("Some error"); }
-        });
-        var view = new DerivedView(model);
-
-        view.update().then(function resolved() {
-          done.fail();
-        }, function rejected(reason) {
-          expect(reason.message).toBe("Some error");
-          expect(listeners.rejectedUpdate).toHaveBeenCalled();
-          done();
-        });
-      });
-
-      it("`update()` should invoke `_update` if the view is valid", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
+      it("should invoke `_update` if the view is valid", function(done) {
+        view = new DerivedView(model);
 
         spyOn(view, '_update').and.callThrough();
 
@@ -191,15 +187,11 @@ define([
         });
       });
 
-      it("`update()` should create the visualization DOM element if the view is valid", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should create the visualization DOM element if the view is valid", function(done) {
+        view = new DerivedView(model);
         spyOn(view, 'prepare').and.callThrough();
-        expect(view._element).toBeNull();
 
+        expect(view._element).toBeNull();
         view.update().then(function resolved() {
           expect(view.prepare).toHaveBeenCalled();
           expect(view._element instanceof HTMLElement).toBe(true);
@@ -209,12 +201,8 @@ define([
 
       });
 
-      it("`update()` should create the visualization DOM element on the first update", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should create the visualization DOM element on the first update", function(done) {
+        view = new DerivedView(model);
         spyOn(view, 'prepare').and.callThrough();
 
         view.update().then(function resolved() {
@@ -228,11 +216,9 @@ define([
 
       });
 
-      it("`update()` should emit a 'did:create' event after the first update", function(done) {
-        var DerivedView = View.extend({
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model), emitted = false;
+      it("should emit a 'did:create' event after the first update", function(done) {
+        view = new DerivedView(model);
+        var emitted = false;
 
         listeners.didCreate.and.callFake(function() {
           emitted = true;
@@ -245,38 +231,28 @@ define([
 
       });
 
-      it("`update()` should not invoke `_update` if the view is invalid", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ return ["Some error"]; },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should not invoke `_update` if the view is invalid", function(done) {
+        view = new ValidationErrorView(model);
         spyOn(view, '_update').and.callThrough();
 
         view.update().then(function() {
           done.fail();
         }, function(reason) {
-          expect(reason.message).toBe("Some error");
+          expectValidationError(reason.message, "Some error");
           expect(view._update).not.toHaveBeenCalled();
           done();
         });
 
       });
 
-      it("`update()` should not create the visualization DOM element if the view is invalid", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ return ["Some error"]; },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should not create the visualization DOM element if the view is invalid", function(done) {
+        view = new ValidationErrorView(model);
         spyOn(view, 'prepare').and.callThrough();
 
         view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
-          expect(reason.message).toBe("Some error");
+          expectValidationError(reason.message, "Some error");
           expect(view.prepare).not.toHaveBeenCalled();
           expect(view._element).toBeNull();
           done();
@@ -284,50 +260,36 @@ define([
 
       });
 
-      it("`update()` should not invoke `_update` if `_validate` throws", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ throw new Error("Some error"); },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should not invoke `_update` if `_validate` throws", function(done) {
+        view = new ValidationErrorView(model);
         spyOn(view, '_update').and.callThrough();
 
         view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
-          expect(reason.message).toBe("Some error");
+          expectValidationError(reason.message, "Some error");
           expect(view._update).not.toHaveBeenCalled();
           done();
         });
 
       });
 
-      it("`update()` should not create the visualization DOM element if `_validate` throws", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ throw new Error("Some error"); },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
-
+      it("should not create the visualization DOM element if `_validate` throws", function(done) {
+        view = new ValidationErrorView(model);
         spyOn(view, 'prepare').and.callThrough();
 
         view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
+          expectValidationError(reason.message, "Some error");
           expect(view.prepare).not.toHaveBeenCalled();
-          expect(reason.message).toBe("Some error");
           done();
         });
 
       });
 
-      it("`update()` should not emit a 'did:create' event if the view is invalid", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ throw new Error("Some error"); },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
+      it("should not emit a 'did:create' event if the view is invalid", function(done) {
+        view = new ValidationErrorView(model);
 
         listeners.didCreate.and.callFake(function() {
           done.fail();
@@ -336,18 +298,14 @@ define([
         view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
-          expect(reason.message).toBe("Some error");
+          expectValidationError(reason.message, "Some error");
           done();
         });
 
       });
 
-      it("`update()` should not emit a 'did:create' event if `_validate` throws", function(done) {
-        var DerivedView = View.extend({
-          _validate: function(){ throw new Error("Some error"); },
-          _update: function(){ return "Rendered"; }
-        });
-        var view = new DerivedView(model);
+      it("should not emit a 'did:create' event if `_validate` throws", function(done) {
+        view = new ValidationErrorView(model);
 
         listeners.didCreate.and.callFake(function() {
           done.fail();
@@ -356,12 +314,11 @@ define([
         view.update().then(function resolved() {
           done.fail();
         }, function rejected(reason) {
-          expect(reason.message).toBe("Some error");
+          expectValidationError(reason.message, "Some error");
           done();
         });
 
       });
-
     });
 
     describe("#_onChange", function(){

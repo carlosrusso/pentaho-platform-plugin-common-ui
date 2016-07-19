@@ -23,14 +23,13 @@ define([
   /* global describe:false, it:false, expect:false, beforeEach:false */
 
   describe("pentaho.visual.base.events.RejectedUpdate -", function() {
-    var type = "update";
 
     it("should extend Event", function() {
       expect(RejectedUpdate.prototype instanceof Event).toBe(true);
     });
 
     it("static property type should return full type name", function() {
-      expect(RejectedUpdate.type).toBe("rejected:" + type);
+      expect(RejectedUpdate.type).toBe("rejected:update");
     });
 
     it("static property type should be read-only", function() {
