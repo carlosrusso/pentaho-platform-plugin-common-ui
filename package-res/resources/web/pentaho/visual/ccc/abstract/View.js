@@ -301,9 +301,17 @@ define([
         this._chart.render(true, true, false);
       }
     },
+    
+    _initDomNode: function() {
+      var element = this.domNode;
+      if(!element)
+        element = document.createElement("div");
+      
+      return element;
+    },
 
     _initOptions: function() {
-      var model = this.model;
+      var model = this.model, element = this._initDomNode();
 
       // Store the current selections
       this._selections = null; //drawSpec.highlights; // TODO: hookup model selections?
@@ -312,7 +320,7 @@ define([
       var options = this.options = def.create(this._options);
       def.set(
         options,
-        "canvas", this._element,
+        "canvas", element,
         "height", model.height || 400,
         "width", model.width || 400,
         "dimensionGroups", {},
@@ -817,12 +825,13 @@ define([
 
     _configure: function() {
       var options = this.options,
-          model = this.model;
+          model   = this.model,
+          element = options.canvas;
 
       // By default hide overflow, otherwise,
       // resizing the window frequently ends up needlessly showing scrollbars.
-      if(this._element.parentNode) {
-        this._element.parentNode.style.overflow = "hidden"; // Hide overflow
+      if(element.parentNode) {
+        element.parentNode.style.overflow = "hidden"; // Hide overflow
       }
 
       var colorScaleKind = this._getColorScaleKind();
@@ -1136,11 +1145,12 @@ define([
     //endregion
 
     _configureMultiChart: function() {
-      var options = this.options;
+      var options = this.options,
+          element = options.canvas;
 
       // Let the vertical scrollbar show up if necessary
-      if(this._element.parentNode) {
-        var containerStyle = this._element.parentNode.style;
+      if(element.parentNode) {
+        var containerStyle = element.parentNode.style;
         containerStyle.overflowX = "hidden";
         containerStyle.overflowY = "auto";
       }
@@ -1269,8 +1279,9 @@ define([
     },
 
     _renderCore: function() {
-      while(this._element.firstChild) {
-        this._element.removeChild(this._element.firstChild);
+      var element = this.options.canvas;
+      while(element.firstChild) {
+        element.removeChild(element.firstChild);
       }
 
       var ChartClass = pvc[this._cccClass];
@@ -1283,6 +1294,8 @@ define([
       // When render fails, due to required visual roles, for example, there is not chart.data.
       // Calling clearSelection, ahead, ends up causing an error.
       if(this._chart.data) this._updateSelections();
+      
+      if(!this.domNode) this._setDomNode(element);
     },
 
     _updateSelections: function() {

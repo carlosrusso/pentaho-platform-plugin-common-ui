@@ -15,6 +15,7 @@
  */
 define([
   "pentaho/lang/Base",
+  "pentaho/lang/EventSource",
   "./events/DidCreate",
   "./events/WillUpdate",
   "./events/DidUpdate",
@@ -24,7 +25,7 @@ define([
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
-], function(Base, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
+], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
             filter, error, logger, Promise) {
 
   "use strict";
@@ -65,7 +66,7 @@ define([
        * @protected
        * @readonly
        */
-      this._element = null;
+      this._domNode = null;
 
       /**
        * The model of the visualization.
@@ -74,7 +75,18 @@ define([
        */
       this.model = model;
 
+      this._updatingPromise = false;
+
       this._init();
+    },
+
+    /**
+     * Gets the view's DOM Node.
+     *
+     * @type {?(Node|Text|HTMLElement)}
+     */
+    get domNode() {
+      return this._domNode;
     },
 
     /**
@@ -86,6 +98,15 @@ define([
      */
     get context() {
       return this.model.type.context;
+    },
+
+    /**
+     * Gets the value that indicates when an update is in progress.
+     *
+     * @type {!boolean}
+     */
+    get isUpdating() {
+      return this._updatingPromise;
     },
 
     /**
@@ -108,36 +129,41 @@ define([
      * @fires "did:create"
      */
     update: function() {
-      var me = this,
-          model = this.model,
-          isFirstRender = !this._element;
+      var me = this;
 
       return new Promise(function(resolve, reject) {
+        if(me.isUpdating) reject("Previous update still in progress!");
+
+        me._updatingPromise = true;
+
         var willUpdate;
-        if(model._hasListeners(WillUpdate.type)) {
-          willUpdate = new WillUpdate(model);
-          model._emitSafe(willUpdate);
+        if(me._hasListeners(WillUpdate.type)) {
+          willUpdate = new WillUpdate(me);
+          me._emitSafe(willUpdate);
         }
 
-        var result = willUpdate && willUpdate.isCanceled
-          ? ActionResult.reject(willUpdate.cancelReason)
-          : me._doUpdate();
+        if(willUpdate && willUpdate.isCanceled) {
+          me._updatingPromise = false;
 
-        if(result.error) {
-          if(model._hasListeners(RejectedUpdate.type))
-            model._emitSafe(new RejectedUpdate(model, result.error));
-
-          reject(result.error);
+          reject(willUpdate.cancelReason);
         } else {
-          if(model._hasListeners(DidUpdate.type))
-            model._emitSafe(new DidUpdate(model));
+          Promise.resolve(me._doUpdate()).then(function() {
+            if(me._hasListeners(DidCreate.type))
+              me._emitSafe(new DidCreate(me));
 
-          if(isFirstRender && model._hasListeners(DidCreate.type))
-            model._emitSafe(new DidCreate(model, me._element));
+            me._updatingPromise = false;
 
-          resolve();
+            if(me._hasListeners(DidUpdate.type))
+              me._emitSafe(new DidUpdate(me));
+
+          }, function(reason) {
+            me._updatingPromise = false;
+
+            if(me._hasListeners(RejectedUpdate.type))
+              me._emitSafe(new RejectedUpdate(me, reason));
+
+          });
         }
-
       });
     },
 
@@ -147,44 +173,47 @@ define([
      * If the visualization is valid, the visualization element will be created on the first update
      * and proceed with the visualization update; otherwise, it will be rejected and prevent the update.
      *
-     * @return {pentaho.lang.ActionResult} The result object.
+     * @return {Promise} A promise that is fulfilled when the visualization
+     * is completely rendered. If the visualization is in an invalid state, the promise
+     * is immediately rejected.
+     * 
      * @protected
      */
     _doUpdate: function() {
-      var result;
-      try {
-        var validationErrors = this._validate();
-        if(!validationErrors) {
-          if(!this._element) this.prepare();
+      var me = this;
 
-          this._update();
-          result = ActionResult.fulfill();
+      return new Promise(function(resolve, reject) {
+        try {
+          var validationErrors = me._validate();
+          if(!validationErrors) {
+            Promise.resolve(me._update()).then(resolve, reject);
 
-        } else {
-          var error = "View update was rejected:\n - " +
-            (Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors);
-          result = ActionResult.reject(error);
+          } else {
+            var error = "View update was rejected:\n - " +
+              (Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors);
+
+            reject(ActionResult.reject(error));
+          }
+        } catch(e) {
+          reject(ActionResult.reject(e.message));
         }
+        
+      });
 
-      } catch(e) {
-        result = ActionResult.reject(e.message);
-      }
-
-      return result;
     },
 
     /**
      * Called before the visualization is discarded.
      */
     dispose: function() {
-      this._element = null;
+      this._domNode = null;
     },
 
     /**
      * Called before the first valid visualization update.
      */
-    prepare: function() {
-      this._element = document.createElement("div");
+    _setDomNode: function(domNode) {
+      this._domNode = domNode;
     },
 
     /**
@@ -327,7 +356,7 @@ define([
       var updateSize = changeset.hasChange("width") || changeset.hasChange("height");
       if(updateSize) this._resize();
     }
-  });
+  }).implement(EventSource);
 
   return View;
 

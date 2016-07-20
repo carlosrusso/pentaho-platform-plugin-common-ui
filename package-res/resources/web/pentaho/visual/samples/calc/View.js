@@ -15,7 +15,6 @@ define([
    *
    * @description Creates a calculator `View`.
    * @constructor
-   * @param {HTMLDOMElement} element - The DOM element where the visualization should render.
    * @param {pentaho.visual.samples.calc.Model} model - The calculator's visualization `Model`.
    */
   return Visual.extend(/** @lends pentaho.visual.samples.calc.View */{
@@ -23,42 +22,42 @@ define([
     /** @override */
     _init: function() {
       this.base();
-      this._setupHtmlSpan();
     },
 
     /** @override */
     _update: function() {
-      var result = this._calculate();
+      var numSpan = this._setupHtmlSpan();
+
+      var result = this._calculate(numSpan);
       // TODO: format result
 
-      this._numSpan.innerHTML = bundle.get("result", [result]);
+      numSpan.innerHTML = bundle.get("result", [result]);
 
-      this._resize();
+      this._resize(numSpan);
+
+      this._setDomNode(numSpan);
     },
 
     /** @override */
-    _resize: function() {
+    _resize: function(numSpan) {
       // Center the span
       var width  = this.model.width;
       var height = this.model.height;
-      this._numSpan.style.left = ((width  - this._numSpan.offsetWidth ) / 2) + "px";
-      this._numSpan.style.top  = ((height - this._numSpan.offsetHeight) / 2) + "px";
-    },
-
-    /** @override */
-    dispose: function() {
-      this.base();
-
-      this._numSpan = null;
+      numSpan.style.left = ((width  - numSpan.offsetWidth ) / 2) + "px";
+      numSpan.style.top  = ((height - numSpan.offsetHeight) / 2) + "px";
     },
 
     // ---------
 
     _setupHtmlSpan: function() {
-      this._numSpan = document.createElement("span");
-      this._numSpan.style.fontSize = "42px";
-      this._numSpan.style.position = "relative";
-      this._element.appendChild(this._numSpan);
+      var numSpan = this.domNode;
+      if(!numSpan) {
+        numSpan = document.createElement("span");
+        numSpan.style.fontSize = "42px";
+        numSpan.style.position = "relative";
+      }
+
+      return numSpan;
     },
 
     _calculate: function() {
