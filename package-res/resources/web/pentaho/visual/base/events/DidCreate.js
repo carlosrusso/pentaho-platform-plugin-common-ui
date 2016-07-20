@@ -25,33 +25,30 @@ define([
    * @class
    * @extends pentaho.lang.Event
    *
-   * @classDesc This event is emitted the first time the visualization is updated without any errors.
+   * @classDesc This event is emitted before the first time the visualization is updated without any errors.
    *
    * @constructor
    * @description Creates a `DidCreate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
+   * @param {!pentaho.visual.base.View} source - The view object that is emitting the event.
    */
   return Event.extend("pentaho.visual.base.events.DidCreate",
     /** @lends pentaho.visual.base.events.DidCreate# */{
 
-      constructor: function(source, element) {
-        if(!element) throw error.argRequired("element");
-
+      constructor: function(source) {
         this.base("did:create", source, false);
-        this._element = element;
       },
 
-    /**
-     * Gets the visualization's DOM element created in the
-     * {@link pentaho.visual.base.Model#update|Model#update} loop.
-     *
-     * @return {HTMLElement} The visualization's DOM element.
-     */
-    get element() {
-        return this._element;
+      /**
+       * Gets the visualization's DOM element created in the {@link pentaho.visual.base.Model#update|Model#update} loop.
+       * 
+       * This getter is syntax sugar for `this.source.domNode`.
+       *
+       * @type {Node|Text|HTMLElement} The visualization's DOM element.
+       */
+      get domNode() {
+        return this.source.domNode;
       }
-
     }, /** @lends pentaho.visual.base.events.DidCreate */{
 
       /**
@@ -63,7 +60,5 @@ define([
       get type() {
         return "did:create";
       }
-
     });
-
 });

@@ -30,7 +30,7 @@ define([
    * @constructor
    * @description Creates a `DidUpdate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
+   * @param {!pentaho.visual.base.View} source - The view object that is emitting the event.
    */
   return Event.extend("pentaho.visual.base.events.DidUpdate",
     /** @lends pentaho.visual.base.events.DidUpdate# */{
@@ -38,7 +38,6 @@ define([
       constructor: function(source) {
         this.base("did:update", source, false);
       }
-
     }, /** @lends pentaho.visual.base.events.DidUpdate */{
 
     /**
@@ -50,7 +49,5 @@ define([
     get type() {
       return "did:update";
     }
-
   });
-
 });

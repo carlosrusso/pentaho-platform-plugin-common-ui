@@ -31,13 +31,13 @@ define([
    *
    * A rejection can be one of the following:
    *  - the event {@link pentaho.type.events.WillUpdate|"will:update"} was canceled
-   *  - an error occurred while validating the view
-   *  - an error occurred while updating the view
+   *  - an error occurred while validating the model
+   *  - an error occurred while updating the model
    *
    * @constructor
    * @description Creates a `RejectedUpdate` event.
    *
-   * @param {!pentaho.visual.base.Model} source - The model object that is emitting the event.
+   * @param {!pentaho.visual.base.View} source - The view object that is emitting the event.
    * @param {!Error|pentaho.lang.UserError} error - The error of a rejected
    * {@link pentaho.lang.ActionResult|ActionResult}.
    */
@@ -48,7 +48,6 @@ define([
         this.base("rejected:update", source, false);
         this._initError(error);
       }
-
     }, /** @lends pentaho.visual.base.events.RejectedUpdate */{
 
       /**
@@ -60,7 +59,5 @@ define([
       get type() {
         return "rejected:update";
       }
-
     }).implement(mixinError);
-
 });

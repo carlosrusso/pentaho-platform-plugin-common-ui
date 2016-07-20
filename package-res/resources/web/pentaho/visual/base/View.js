@@ -61,8 +61,8 @@ define([
         throw error.argRequired("model");
 
       /**
-       * The HTML element where the visualization should render.
-       * @type {HTMLElement}
+       * The DOM node where the visualization should render.
+       * @type {?(Node|Text|HTMLElement)}
        * @protected
        * @readonly
        */
@@ -75,6 +75,11 @@ define([
        */
       this.model = model;
 
+      /**
+       * Indicates when an update is in progress.
+       * @type {!boolean}
+       * @readonly
+       */
       this._updatingPromise = false;
 
       this._init();
@@ -210,7 +215,10 @@ define([
     },
 
     /**
-     * Called before the first valid visualization update.
+     * Sets the DOM Node that the visualization will use to render itself.
+     * 
+     * @param {?(Node|Text|HTMLElement)} domNode - Visualization's DOM Node.
+     * @protected
      */
     _setDomNode: function(domNode) {
       this._domNode = domNode;
