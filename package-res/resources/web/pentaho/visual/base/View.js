@@ -22,11 +22,12 @@ define([
   "./events/RejectedUpdate",
   "pentaho/lang/ActionResult",
   "pentaho/data/filter",
+  "pentaho/util/Bitset",
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
 ], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
-            filter, error, logger, Promise) {
+            filter, Bitset, error, logger, Promise) {
 
   "use strict";
 
@@ -82,6 +83,9 @@ define([
        */
       this._isUpdating = false;
 
+      this.isAutoUpdate = true;
+      this._dirtyState = new Bitset(View.DIRTY.FULL); // mark view as initially dirty
+
       this._init();
     },
 
@@ -112,6 +116,48 @@ define([
      */
     get isUpdating() {
       return this._isUpdating;
+    },
+
+    /**
+     * Gets or sets a value that enables or disables automatic updates of the visualization.
+     *
+     * Note: Setting this property to `true` does not force the visualization to update itself.
+     *
+     * @type {!boolean}
+     */
+    _isAutoUpdate: true,
+
+    get isAutoUpdate() {
+      return this._isAutoUpdate;
+    },
+
+    set isAutoUpdate(bool) {
+      var newState = !!bool;
+      var oldState = this._isAutoUpdate;
+      if(newState === oldState) return;
+
+      this._isAutoUpdate = newState;
+      //TODO: BACKLOG-8275
+      // render when the view is dirty and this property transitions from `false` to `true`
+    },
+
+    /**
+     * Set of bits that indicate the dirty regions of the view.
+     *
+     * @type {!number}
+     * @protected
+     */
+    _dirtyState: null,
+
+    /**
+     * Gets a value that indicates if the view is currently in a dirty state.
+     *
+     * @see pentaho.visual.base.View#isAutoUpdate
+     *
+     * @return {boolean}
+     */
+    get isDirty() {
+      return !this._dirtyState.is(View.DIRTY.CLEAN);
     },
 
     /**
@@ -159,6 +205,7 @@ define([
             me._emitSafe(new DidCreate(me));
 
           me._isUpdating = false;
+          me._dirtyState.set(View.DIRTY.CLEAN);
 
           if(me._hasListeners(DidUpdate.type))
             me._emitSafe(new DidUpdate(me));
@@ -182,7 +229,7 @@ define([
      * @return {Promise} A promise that is fulfilled when the visualization
      * is completely rendered. If the visualization is in an invalid state, the promise
      * is immediately rejected.
-     * 
+     *
      * @protected
      */
     _doUpdate: function() {
@@ -195,11 +242,53 @@ define([
       }
 
       try {
-        return Promise.resolve(this._update());
+        return Promise.resolve(this._updateLoop());
       } catch(e) {
         return Promise.reject(ActionResult.reject(e.message));
       }
 
+    },
+
+    /**
+     * Loops over the update methods as needed
+     * @returns {*}
+     * @private
+     */
+    _updateLoop: function(){
+
+      var dirtyState = this._dirtyState;
+      if(dirtyState.is(View.DIRTY.CLEAN)) return;
+
+      var renderRegistry = [
+        {
+          mask: View.DIRTY.RESIZE,
+          method: this._resize
+        }, {
+          mask: View.DIRTY.SELECTION, // In CCC: View.DIRTY.RESIZE + View.DIRTY.SELECTION
+          method: this._selectionChanged
+        }
+      ];
+
+      var firstRenderer = {
+        mask: View.DIRTY.FULL,
+        method: this._update
+      };
+
+      renderRegistry.some(function(renderer){
+        if(dirtyState.isSubsetOf(renderer.mask)){
+          firstRenderer = renderer;
+          return true;
+        }
+      });
+
+      var me = this;
+      return Promise.resolve(firstRenderer.method.call(this))
+        .then(function() {
+
+          dirtyState.clear(firstRenderer.mask);
+          return me._updateLoop();
+
+        });
     },
 
     /**
@@ -211,7 +300,7 @@ define([
 
     /**
      * Sets the DOM node that the visualization will use to render itself.
-     * 
+     *
      * @param {?(Node|Text|HTMLElement)} domNode - Visualization's DOM node.
      * @protected
      */
@@ -313,6 +402,9 @@ define([
      * Decides how the visualization should react
      * to a modification of its properties.
      *
+     * If the [isAutoUpdate]{@link pentaho.visual.base.View#isAutoUpdate} flag is set to `false`,
+     * this method returns immediately an no changes are processed.
+     *
      * By default, this method selects the cheapest reaction to a change of properties.
      * It invokes:
      * - [_resize]{@link pentaho.visual.base.View#_resize} when either of the properties
@@ -335,6 +427,7 @@ define([
      */
     _onChange: function(changeset) {
       if(!changeset.hasChanges) return;
+      var dirtyState = this._dirtyState;
 
       var exclusionList = {
         width: true,
@@ -343,26 +436,39 @@ define([
         selectionFilter: true
       };
 
-      var fullUpdate = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
-      if(fullUpdate) {
-        this.update().then(function() {
-          logger.info("Auto-update succeeded!");
-        }, function(errors) {
-          logger.warn("Auto-update canceled:\n - " +
-              (Array.isArray(errors) ? errors.join("\n - ") : errors));
-        });
+      var isFullyDirty = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
+      if(isFullyDirty) {
+
+        dirtyState.set();
+
+      } else {
+
+        var isSizeDirty = changeset.hasChange("width") || changeset.hasChange("height");
+        if(isSizeDirty) dirtyState.set(View.DIRTY.RESIZE);
+
+        var isSelectionDirty = changeset.hasChange("selectionFilter");
+        if(isSelectionDirty) dirtyState.set(View.DIRTY.SELECTION);
+
+      }
+
+      if(!this.isAutoUpdate){
         return;
       }
 
-      var updateSelection = changeset.hasChange("selectionFilter");
-      if(updateSelection) {
-        var newFilter = this.model.selectionFilter;
-        var oldValue = changeset.getOld("selectionFilter");
-        this._selectionChanged(newFilter, oldValue != null ? oldValue.value : null);
-      }
+      this.update().then(function() {
+        logger.info("Auto-update succeeded!");
+      }, function(errors) {
+        logger.warn("Auto-update canceled:\n - " +
+          (Array.isArray(errors) ? errors.join("\n - ") : errors));
+      });
 
-      var updateSize = changeset.hasChange("width") || changeset.hasChange("height");
-      if(updateSize) this._resize();
+    }
+  }, {
+    DIRTY: {
+      CLEAN: 0,
+      FULL: ~0,
+      RESIZE: 1,
+      SELECTION: 2
     }
   }).implement(EventSource);
 
