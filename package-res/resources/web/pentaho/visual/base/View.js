@@ -51,11 +51,12 @@ define([
    *
    * @constructor
    * @param {pentaho.visual.base.Model} model - The base visualization `Model`.
+   * @param {!Object} keyArgs - Keyword arguments.
    */
 
   var View = Base.extend(/** @lends pentaho.visual.base.View# */{
 
-    constructor: function(model) {
+    constructor: function(model, keyArgs) {
 
       if(!model)
         throw error.argRequired("model");
@@ -81,6 +82,9 @@ define([
        * @readonly
        */
       this._updatingPromise = false;
+
+      this.isAutoUpdate = keyArgs && keyArgs.isAutoUpdate === false ? false : true;
+      this._dirtyState = ~0; // mark view as initially dirty
 
       this._init();
     },
@@ -112,6 +116,48 @@ define([
      */
     get isUpdating() {
       return this._updatingPromise;
+    },
+
+    /**
+     * Gets or sets a value that enables or disables automatic updates of the visualization.
+     *
+     * Note: Setting this property to `true` does not force the visualization to update itself.
+     *
+     * @type {!boolean}
+     */
+    _isAutoUpdate: true,
+
+    get isAutoUpdate() {
+      return this._isAutoUpdate;
+    },
+
+    set isAutoUpdate(bool) {
+      var newState = !!bool;
+      var oldState = this._isAutoUpdate;
+      if(newState === oldState) return;
+
+      this._isAutoUpdate = newState;
+      //TODO: BACKLOG-8275
+      // render when the view is dirty and this property transitions from `false` to `true`
+    },
+
+    /**
+     * Set of bits that indicate the dirty regions of the view.
+     *
+     * @type {!number}
+     * @protected
+     */
+    _dirtyState: ~0,
+
+    /**
+     * Gets a value that indicates if the view is currently in a dirty state.
+     *
+     * @see pentaho.visual.base.View#isAutoUpdate
+     *
+     * @return {boolean}
+     */
+    get isDirty() {
+      return this._dirtyState !== 0;
     },
 
     /**
@@ -152,17 +198,20 @@ define([
 
           reject(willUpdate.cancelReason);
         } else {
-          Promise.resolve(me._doUpdate()).then(function() {
+          Promise.resolve(me._doUpdate()).then(function(result) {
             if(me._hasListeners(DidCreate.type))
               me._emitSafe(new DidCreate(me));
 
             me._updatingPromise = false;
+            me._dirtyState = 0;
+            resolve(result);
 
             if(me._hasListeners(DidUpdate.type))
               me._emitSafe(new DidUpdate(me));
 
           }, function(reason) {
             me._updatingPromise = false;
+            reject(reason);
 
             if(me._hasListeners(RejectedUpdate.type))
               me._emitSafe(new RejectedUpdate(me, reason));
@@ -170,6 +219,7 @@ define([
           });
         }
       });
+
     },
 
     /**
@@ -313,6 +363,9 @@ define([
      * Decides how the visualization should react
      * to a modification of its properties.
      *
+     * If the [isAutoUpdate]{@link pentaho.visual.base.View#isAutoUpdate} flag is set to `false`,
+     * this method returns immediately an no changes are processed.
+     *
      * By default, this method selects the cheapest reaction to a change of properties.
      * It invokes:
      * - [_resize]{@link pentaho.visual.base.View#_resize} when either of the properties
@@ -336,6 +389,11 @@ define([
     _onChange: function(changeset) {
       if(!changeset.hasChanges) return;
 
+      // stub for handling dirty views (BACKLOG-8275)
+      this._dirtyState = ~0;
+
+      if(!this.isAutoUpdate) return;
+
       var exclusionList = {
         width: true,
         height: true,
@@ -343,7 +401,9 @@ define([
         selectionFilter: true
       };
 
-      var fullUpdate = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
+      var fullUpdate =  this._dirtyState != 0 ||
+        changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
+
       if(fullUpdate) {
         this.update().then(function() {
           logger.info("Auto-update succeeded!");
@@ -363,6 +423,11 @@ define([
 
       var updateSize = changeset.hasChange("width") || changeset.hasChange("height");
       if(updateSize) this._resize();
+
+      // TODO: remove clearing of dirtyState when #_resize and #_selectionChanged are
+      // dealt with asynchronously
+      this._dirtyState = 0;
+
     }
   }).implement(EventSource);
 

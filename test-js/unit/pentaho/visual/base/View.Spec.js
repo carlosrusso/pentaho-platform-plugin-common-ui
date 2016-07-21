@@ -3,8 +3,9 @@ define([
   "pentaho/visual/base",
   "pentaho/type/Context",
   "pentaho/type/events/DidChange",
-  "tests/pentaho/util/errorMatch"
-], function(View, modelFactory, Context, DidChange, errorMatch) {
+  "tests/pentaho/util/errorMatch",
+  "tests/test-utils"
+], function(View, modelFactory, Context, DidChange, errorMatch, testUtils) {
   "use strict";
 
   /*global document:false*/
@@ -371,6 +372,124 @@ define([
       });
 
     }); // #_onChange
+
+
+    describe("#isAutoUpdate", function() {
+
+      it("should be set to `true` by default", function() {
+        var view = new View(model);
+        expect(view.isAutoUpdate).toBe(true);
+      });
+
+      it("should be writable", function() {
+        var view = new View(model);
+        view.isAutoUpdate = false;
+        expect(view.isAutoUpdate).toBe(false);
+      });
+
+      it("can be specified as a keyword argument of the View's constructor", function() {
+        var view = new View(model, {
+          isAutoUpdate: false
+        });
+        expect(view.isAutoUpdate).toBe(false);
+
+        view = new View(model, {
+          isAutoUpdate: true
+        });
+        expect(view.isAutoUpdate).toBe(true);
+      });
+
+      describe("controls if the View updates in reaction to changes", function() {
+        var view, _resize, _update, _selectionChanged;
+        beforeEach(function() {
+          view = new View(model);
+          _resize = spyOn(view, "_resize");
+          _selectionChanged = spyOn(view, "_selectionChanged");
+          _update = spyOn(view, "_update");
+        });
+
+        it("should not trigger any render method when 'isAutoUpdate' is set to `false`", function() {
+          view.isAutoUpdate = false;
+
+          // trigger a set of changes that ought to call the render methods
+          model.selectionFilter = null;
+          model.isInteractive = false;
+          model.width = 100;
+
+          expect(_resize).not.toHaveBeenCalled();
+          expect(_selectionChanged).not.toHaveBeenCalled();
+          expect(_update).not.toHaveBeenCalled();
+        });
+
+        it("should resume triggering render methods when 'isAutoUpdate' is set to `true` after being at `false`", function() {
+          view.isAutoUpdate = false;
+
+          model.selectionFilter = null;
+          expect(_selectionChanged).not.toHaveBeenCalled();
+
+          view.isAutoUpdate = true;
+          expect(_update).not.toHaveBeenCalled();
+          model.isInteractive = false;
+          expect(_update).toHaveBeenCalled();
+        });
+
+      });
+
+    }); // #isAutoUpdate
+
+    describe("#isDirty", function() {
+      var view;
+      beforeEach(function() {
+        var DerivedView = View.extend({
+          _update: function() {},
+          _validate: function() {
+            return null;
+          }
+        });
+        view = new DerivedView(model);
+      });
+
+      it("should be `true` when the view is created", function() {
+        expect(view.isDirty).toBe(true);
+      });
+
+      it("should be read-only", function() {
+        expect(function(){
+          view.isDirty = false;
+        }).toThrowError(TypeError);
+      });
+
+      it("should be `false` after a full update", function(done) {
+        expect(view.isDirty).toBe(true);
+
+        view.update().then(function(){
+          expect(view.isDirty).toBe(false);
+          done();
+        }, done.fail);
+      });
+
+      describe("plays along '#isAutoUpdate'", function() {
+        beforeEach(function(done) {
+          // Ensure a first render has occurred.
+          // The view is thus clean (not dirty)
+          view.update().then(function(){
+            done();
+          }, function(){
+            done.fail();
+          });
+        });
+
+        it("should mark the view as dirty when 'isAutoUpdate' is set to `false` and a change has taken place", function() {
+          view.isAutoUpdate = false;
+
+          // trigger a set of changes that ought to call the render methods
+          model.selectionFilter = null;
+          expect(view.isDirty).toBe(true);
+        });
+
+      });
+
+    }); // #isDirty
   });
 
 });
