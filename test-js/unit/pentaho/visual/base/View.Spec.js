@@ -286,7 +286,7 @@ define([
 
     describe("#update (handling of dirty bits)", function() {
 
-      var view, _resize, _update, _selectionChanged;
+      var view, _updateSize, _update, _updateSelection;
 
       beforeEach(function() {
 
@@ -296,8 +296,8 @@ define([
         view._dirtyState.clear(); // view is clean
 
         // Setup spies
-        _resize = spyOn(view, "_resize");
-        _selectionChanged = spyOn(view, "_selectionChanged");
+        _updateSize = spyOn(view, "_updateSize");
+        _updateSelection = spyOn(view, "_updateSelection");
         _update = spyOn(view, "_update");
 
         // Ensure view is always valid
@@ -306,24 +306,24 @@ define([
 
       var it = testUtils.itAsync;
 
-      it("should call #_resize when the RESIZE bit is set", function() {
+      it("should call #_updateSize when the RESIZE bit is set", function() {
 
         view._dirtyState.set(View.DIRTY.RESIZE);
 
         return view.update().then(function() {
-          expect(_resize).toHaveBeenCalled();
-          expect(_selectionChanged).not.toHaveBeenCalled();
+          expect(_updateSize).toHaveBeenCalled();
+          expect(_updateSelection).not.toHaveBeenCalled();
           expect(_update).not.toHaveBeenCalled();
         });
       });
 
-      it("should call #_selectionChanged when the SELECTION bit is set", function() {
+      it("should call #_updateSelection when the SELECTION bit is set", function() {
 
         view._dirtyState.set(View.DIRTY.SELECTION);
 
         return view.update().then(function() {
-          expect(_resize).not.toHaveBeenCalled();
-          expect(_selectionChanged).toHaveBeenCalled();
+          expect(_updateSize).not.toHaveBeenCalled();
+          expect(_updateSelection).toHaveBeenCalled();
           expect(_update).not.toHaveBeenCalled();
         });
       });
@@ -333,8 +333,8 @@ define([
         view._dirtyState.set(View.DIRTY.RESIZE | View.DIRTY.SELECTION);
 
         return view.update().then(function() {
-          expect(_resize).not.toHaveBeenCalled();
-          expect(_selectionChanged).not.toHaveBeenCalled();
+          expect(_updateSize).not.toHaveBeenCalled();
+          expect(_updateSelection).not.toHaveBeenCalled();
           expect(_update).toHaveBeenCalled();
         });
       });
@@ -396,13 +396,13 @@ define([
       });
 
       describe("controls if the View updates in reaction to changes", function() {
-        var view, _resize, _update, _selectionChanged;
+        var view, _updateSize, _update, _updateSelection;
 
         beforeEach(function(done) {
           var DerivedView = View.extend({
             _update: function() {},
-            _resize: function() {},
-            _selectionChanged: function() {},
+            _updateSize: function() {},
+            _updateSelection: function() {},
             _validate: function() { return null; }
           });
 
@@ -411,8 +411,8 @@ define([
           view.update().then(function() {
 
             // Setup spies after a clean update
-            _resize = spyOn(view, "_resize");
-            _selectionChanged = spyOn(view, "_selectionChanged");
+            _updateSize = spyOn(view, "_updateSize");
+            _updateSelection = spyOn(view, "_updateSelection");
             _update = spyOn(view, "_update");
 
             done();
@@ -436,30 +436,28 @@ define([
 
         describe("should resume triggering update methods when 'isAutoUpdate' is set to `true` after being at `false`", function() {
 
-
           beforeEach(function() {
             view.isAutoUpdate = false;
           });
 
-          it("resumes running the #_selectionChanged partial update", function(done) {
-            expect(_selectionChanged).not.toHaveBeenCalled();
+          it("resumes running the #_updateSelection partial update", function(done) {
+            expect(_updateSelection).not.toHaveBeenCalled();
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(_selectionChanged).toHaveBeenCalled();
+              expect(_updateSelection).toHaveBeenCalled();
               done();
             });
 
             model.selectionFilter = null; // marks the view as dirty
           });
 
-
-          it("resumes running the #_resize partial update", function(done) {
-            expect(_resize).not.toHaveBeenCalled();
+          it("resumes running the #_updateSize partial update", function(done) {
+            expect(_updateSize).not.toHaveBeenCalled();
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(_resize).toHaveBeenCalled();
+              expect(_updateSize).toHaveBeenCalled();
               done();
             });
 
@@ -467,7 +465,6 @@ define([
           });
 
           it("resumes running #_update (full update)", function(done) {
-
             expect(_update).not.toHaveBeenCalled();
             view.isAutoUpdate = true;
 
@@ -480,7 +477,6 @@ define([
           });
 
         });
-
       });
 
     }); // #isAutoUpdate

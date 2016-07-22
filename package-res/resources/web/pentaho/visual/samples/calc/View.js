@@ -32,12 +32,12 @@ define([
 
       this.domNode.innerHTML = bundle.get("result", [result]);
 
-      this._resize();
+      this._updateSize();
 
     },
 
     /** @override */
-    _resize: function() {
+    _updateSize: function() {
       var element = this.domNode;
 
       // Center the span

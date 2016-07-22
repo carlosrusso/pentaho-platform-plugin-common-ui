@@ -212,7 +212,7 @@ define([
     },
 
     /** @inheritdoc */
-    _resize: function() {
+    _updateSize: function() {
       // Resize event throttling
       if(this._lastResizeTimeout != null)
         clearTimeout(this._lastResizeTimeout);
@@ -238,7 +238,7 @@ define([
     //region Helpers
 
     /** @inheritdoc */
-    _selectionChanged: function(newSelectionFilter) {
+    _updateSelection: function(newSelectionFilter) {
       var dataFilter = newSelectionFilter;
       var selectedItems = dataFilter.apply(this.model.data);
 
@@ -1293,7 +1293,7 @@ define([
     },
 
     _updateSelections: function() {
-      this._selectionChanged(this.model.selectionFilter);
+      this._updateSelection(this.model.selectionFilter);
       try {
         this._chart.updateSelections();
       } catch(e){

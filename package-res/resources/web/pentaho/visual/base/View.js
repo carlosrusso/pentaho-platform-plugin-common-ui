@@ -63,6 +63,7 @@ define([
 
       /**
        * The DOM node where the visualization should render.
+       *
        * @type {?(Node|Text|HTMLElement)}
        * @protected
        * @readonly
@@ -71,6 +72,7 @@ define([
 
       /**
        * The model of the visualization.
+       *
        * @type {pentaho.visual.base.Model}
        * @readonly
        */
@@ -78,12 +80,27 @@ define([
 
       /**
        * Indicates when an update is in progress.
+       *
+       * @protected
        * @type {boolean}
        * @readonly
        */
       this._isUpdating = false;
 
-      this.isAutoUpdate = true;
+      /**
+       * Indicates if view will automatically update to a change in the model.
+       *
+       * @type {boolean}
+       * @protected
+       */
+      this._isAutoUpdate = true;
+
+      /**
+       * Set of bits that indicate the dirty regions of the view.
+       *
+       * @type {!number}
+       * @protected
+       */
       this._dirtyState = new Bitset(View.DIRTY.FULL); // mark view as initially dirty
 
       this._init();
@@ -112,7 +129,7 @@ define([
     /**
      * Gets the value that indicates if an update is in progress.
      *
-     * @type {!boolean}
+     * @type {boolean}
      */
     get isUpdating() {
       return this._isUpdating;
@@ -123,10 +140,8 @@ define([
      *
      * Note: Setting this property to `true` does not force the visualization to update itself.
      *
-     * @type {!boolean}
+     * @type {boolean}
      */
-    _isAutoUpdate: true,
-
     get isAutoUpdate() {
       return this._isAutoUpdate;
     },
@@ -142,19 +157,11 @@ define([
     },
 
     /**
-     * Set of bits that indicate the dirty regions of the view.
-     *
-     * @type {!number}
-     * @protected
-     */
-    _dirtyState: null,
-
-    /**
      * Gets a value that indicates if the view is currently in a dirty state.
      *
      * @see pentaho.visual.base.View#isAutoUpdate
      *
-     * @return {boolean}
+     * @type {boolean}
      */
     get isDirty() {
       return !this._dirtyState.is(View.DIRTY.CLEAN);
@@ -200,7 +207,7 @@ define([
       }
 
       var me = this, hadDomNode = this.domNode;
-      return Promise.resolve(me._doUpdate()).then(function() {
+      return Promise.resolve(me._updateLoop()).then(function() {
           if(!hadDomNode && me.domNode && me._hasListeners(DidCreate.type))
             me._emitSafe(new DidCreate(me));
 
@@ -230,9 +237,12 @@ define([
      * is completely rendered. If the visualization is in an invalid state, the promise
      * is immediately rejected.
      *
-     * @protected
+     * @private
      */
-    _doUpdate: function() {
+    _updateLoop: function() {
+      var dirtyState = this._dirtyState;
+      if(dirtyState.is(View.DIRTY.CLEAN)) return Promise.resolve();
+
       var validationErrors = this._validate();
       if(validationErrors) {
         var error = "View update was rejected:\n - " +
@@ -241,31 +251,13 @@ define([
         return Promise.reject(ActionResult.reject(error));
       }
 
-      try {
-        return Promise.resolve(this._updateLoop());
-      } catch(e) {
-        return Promise.reject(ActionResult.reject(e.message));
-      }
-
-    },
-
-    /**
-     * Loops over the update methods as needed
-     * @returns {*}
-     * @private
-     */
-    _updateLoop: function(){
-
-      var dirtyState = this._dirtyState;
-      if(dirtyState.is(View.DIRTY.CLEAN)) return;
-
       var renderRegistry = [
         {
           mask: View.DIRTY.RESIZE,
-          method: this._resize
+          method: this._updateSize
         }, {
           mask: View.DIRTY.SELECTION, // In CCC: View.DIRTY.RESIZE + View.DIRTY.SELECTION
-          method: this._selectionChanged
+          method: this._updateSelection
         }
       ];
 
@@ -282,13 +274,18 @@ define([
       });
 
       var me = this;
-      return Promise.resolve(firstRenderer.method.call(this))
-        .then(function() {
+      try {
+        return Promise.resolve(firstRenderer.method.call(this))
+          .then(function() {
 
-          dirtyState.clear(firstRenderer.mask);
-          return me._updateLoop();
+            dirtyState.clear(firstRenderer.mask);
+            return me._updateLoop();
+          });
 
-        });
+      } catch(e) {
+        return Promise.reject(ActionResult.reject(e.message));
+      }
+
     },
 
     /**
@@ -378,7 +375,7 @@ define([
      *
      * @protected
      */
-    _resize: /* istanbul ignore next: placeholder method */ function() {
+    _updateSize: /* istanbul ignore next: placeholder method */ function() {
       this._update();
     },
 
@@ -393,7 +390,7 @@ define([
      *
      * @protected
      */
-    _selectionChanged:
+    _updateSelection:
     /* istanbul ignore next: placeholder method */function(newSelectionFilter, previousSelectionFilter) {
       this._update();
     },
@@ -407,18 +404,18 @@ define([
      *
      * By default, this method selects the cheapest reaction to a change of properties.
      * It invokes:
-     * - [_resize]{@link pentaho.visual.base.View#_resize} when either of the properties
+     * - [_updateSize]{@link pentaho.visual.base.View#_updateSize} when either of the properties
      * [width]{@link pentaho.visual.base.Model.Type#width} or
      * [height]{@link pentaho.visual.base.Model.Type#height} change,
-     * - [_selectionChanged]{@link pentaho.visual.base.View#_selectionChanged} when the property
+     * - [_updateSelection]{@link pentaho.visual.base.View#_updateSelection} when the property
      * [selectionFilter]{@link pentaho.visual.base.Model.Type#selectionFilter} changes
      * - [_update]{@link pentaho.visual.base.View#_update} when any other property changes.
      *
      * Subclasses of `pentaho.visual.base.View` can override this method to
      * extend the set of fast render methods.
      *
-     * @see pentaho.visual.base.View#_resize
-     * @see pentaho.visual.base.View#_selectionChanged
+     * @see pentaho.visual.base.View#_updateSize
+     * @see pentaho.visual.base.View#_updateSelection
      * @see pentaho.visual.base.View#_update
      *
      * @param {!pentaho.type.Changeset} changeset - Map of the properties that have changed.
