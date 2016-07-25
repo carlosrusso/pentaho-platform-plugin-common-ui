@@ -85,7 +85,8 @@ define([
      * @return {boolean} `true` if the bits currently set are within the specified mask; `false` otherwise.
      */
     isSubsetOf: function(mask) {
-      return (this._bits | mask) === mask;
+      var bits = this._bits;
+      return (bits !== 0) && ((bits | mask) === mask);
     }
   });
 });
