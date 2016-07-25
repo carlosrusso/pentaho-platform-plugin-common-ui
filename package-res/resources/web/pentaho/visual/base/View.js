@@ -22,12 +22,12 @@ define([
   "./events/RejectedUpdate",
   "pentaho/lang/UserError",
   "pentaho/data/filter",
-  "pentaho/util/Bitset",
+  "pentaho/util/BitSet",
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
 ], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, UserError,
-            filter, Bitset, error, logger, Promise) {
+            filter, BitSet, error, logger, Promise) {
 
   "use strict";
 
@@ -114,7 +114,7 @@ define([
        * @protected
        * @readOnly
        */
-      this._dirtyRegions = new Bitset(View.REGIONS.ALL); // mark view as initially dirty
+      this._dirtyRegions = new BitSet(View.REGIONS.ALL); // mark view as initially dirty
 
       /**
        * The model's "did:change" event registration handle.
