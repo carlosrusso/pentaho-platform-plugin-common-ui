@@ -238,8 +238,8 @@ define([
     //region Helpers
 
     /** @inheritdoc */
-    _updateSelection: function(newSelectionFilter) {
-      var dataFilter = newSelectionFilter;
+    _updateSelection: function() {
+      var dataFilter = this.model.selectionFilter;
       var selectedItems = dataFilter.apply(this.model.data);
 
       // Get information on the axes
@@ -1287,13 +1287,13 @@ define([
         .setData(this._dataView.toJsonCda())
         .render();
 
-      // When render fails, due to required visual roles, for example, there is not chart.data.
+      // When render fails, due to required visual roles, for example, there is no chart.data.
       // Calling clearSelection, ahead, ends up causing an error.
       if(this._chart.data) this._updateSelections();
     },
 
     _updateSelections: function() {
-      this._updateSelection(this.model.selectionFilter);
+      this._updateSelection();
       try {
         this._chart.updateSelections();
       } catch(e){
