@@ -278,9 +278,9 @@ define([
       if(!whereSpec.length)
         return this._chart.clearSelections();
 
-      this._chart.data.replaceSelected(
-        this._chart.data.datums(whereSpec)
-      );
+      this._chart.data.replaceSelected(this._chart.data.datums(whereSpec));
+
+      this._chart.updateSelections();
 
       function specToKey(spec) {
         var entries = Object.keys(spec).sort();
@@ -1289,16 +1289,7 @@ define([
 
       // When render fails, due to required visual roles, for example, there is no chart.data.
       // Calling clearSelection, ahead, ends up causing an error.
-      if(this._chart.data) this._updateSelections();
-    },
-
-    _updateSelections: function() {
-      this._updateSelection();
-      try {
-        this._chart.updateSelections();
-      } catch(e){
-        logger.log("Error while calling _chart.updateSelections: " + e.message);
-      }
+      if(this._chart.data) this._updateSelection();
     },
 
     //region SELECTION
