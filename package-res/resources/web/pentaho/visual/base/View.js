@@ -20,22 +20,27 @@ define([
   "./events/WillUpdate",
   "./events/DidUpdate",
   "./events/RejectedUpdate",
-  "pentaho/lang/ActionResult",
+  "pentaho/lang/UserError",
   "pentaho/data/filter",
   "pentaho/util/Bitset",
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/shim/es6-promise"
-], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, ActionResult,
+], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, UserError,
             filter, Bitset, error, logger, Promise) {
 
   "use strict";
+
+  // Allow ~0
+  // jshint -W016
 
   /**
    * @name pentaho.visual.base.View
    * @memberOf pentaho.visual.base
    * @class
    * @extends pentaho.lang.Base
+   * @implements pentaho.lang.IDisposable
+   *
    * @abstract
    * @amd pentaho/visual/base/View
    *
@@ -45,7 +50,7 @@ define([
    * which may not be immediately valid.
    *
    * Over time, the container mutates the `Model` instance and triggers events.
-   * In response, the method [_onChange]{@link pentaho.visual.base.View#_onChange} is
+   * In response, the method [_onModelChange]{@link pentaho.visual.base.View#_onModelChange} is
    * invoked to process the events, which may cause the `View` to update itself.
    *
    * @description Initializes a `View` instance.
@@ -62,48 +67,75 @@ define([
         throw error.argRequired("model");
 
       /**
-       * The DOM node where the visualization should render.
+       * The DOM node where the visualization is rendered.
        *
        * @type {?(Node|Text|HTMLElement)}
-       * @protected
-       * @readonly
+       * @private
        */
       this._domNode = null;
 
       /**
-       * The model of the visualization.
+       * Gets the model of the visualization.
        *
-       * @type {pentaho.visual.base.Model}
-       * @readonly
+       * @type {!pentaho.visual.base.Model}
+       * @readOnly
        */
       this.model = model;
 
       /**
-       * Indicates when an update is in progress.
+       * Indicates if an update is in progress.
        *
-       * @protected
        * @type {boolean}
-       * @readonly
+       * @private
        */
       this._isUpdating = false;
 
       /**
-       * Indicates if view will automatically update to a change in the model.
+       * Indicates if there has been at least one successful full update.
        *
        * @type {boolean}
-       * @protected
+       * @private
+       */
+      this._hasUpdateFull = false;
+
+      /**
+       * Indicates if the view is automatically updated whenever the model is changed.
+       *
+       * @type {boolean}
+       * @private
+       * @default true
        */
       this._isAutoUpdate = true;
 
       /**
-       * Set of bits that indicate the dirty regions of the view.
+       * The set of dirty regions of the view.
        *
-       * @type {!number}
+       * @type {!pentaho.lang.BitSet}
        * @protected
+       * @readOnly
        */
-      this._dirtyState = new Bitset(View.DIRTY.FULL); // mark view as initially dirty
+      this._dirtyRegions = new Bitset(View.REGIONS.ALL); // mark view as initially dirty
+
+      /**
+       * The model's "did:change" event registration handle.
+       *
+       * @type {!pentaho.lang.IEventRegistrationHandle}
+       */
+      this._handleDidChange = model.on("did:change", this._processModelChange.bind(this));
 
       this._init();
+    },
+
+    /**
+     * Initializes the visualization.
+     *
+     * This method is invoked by the constructor of `pentaho.visual.base.View`.
+     * Override this method to perform initialization tasks,
+     * such as setting up event listeners.
+     *
+     * @protected
+     */
+    _init: function() {
     },
 
     /**
@@ -113,6 +145,24 @@ define([
      */
     get domNode() {
       return this._domNode;
+    },
+
+    /**
+     * Sets the DOM node that the visualization will use to render itself.
+     *
+     * @param {!(Node|Text|HTMLElement)} domNode - The visualization's DOM node.
+     *
+     * @protected
+     *
+     * @throws {pentaho.lang.OperationInvalidError} When the DOM node has already been set to a different value.
+     */
+    _setDomNode: function(domNode) {
+      if(!domNode) throw error.argRequired("domNode");
+
+      if(this._domNode && domNode !== this._domNode)
+        throw error.operInvalid("Can't change the visualization dom node once it is set.");
+
+      this._domNode = domNode;
     },
 
     /**
@@ -127,7 +177,7 @@ define([
     },
 
     /**
-     * Gets the value that indicates if an update is in progress.
+     * Gets a value that indicates if an update is in progress.
      *
      * @type {boolean}
      */
@@ -146,14 +196,8 @@ define([
       return this._isAutoUpdate;
     },
 
-    set isAutoUpdate(bool) {
-      var newState = !!bool;
-      var oldState = this._isAutoUpdate;
-      if(newState === oldState) return;
-
-      this._isAutoUpdate = newState;
-      //TODO: BACKLOG-8275
-      // render when the view is dirty and this property transitions from `false` to `true`
+    set isAutoUpdate(value) {
+      this._isAutoUpdate = !!value;
     },
 
     /**
@@ -164,7 +208,7 @@ define([
      * @type {boolean}
      */
     get isDirty() {
-      return !this._dirtyState.is(View.DIRTY.CLEAN);
+      return !this._dirtyRegions.isEmpty;
     },
 
     /**
@@ -187,44 +231,69 @@ define([
      * @fires "did:create"
      */
     update: function() {
-      if(this.isUpdating) return Promise.reject(new Error("Previous update still in progress!"));
+
+      if(this.isUpdating)
+        return Promise.reject(new Error("Previous update still in progress!"));
 
       this._isUpdating = true;
 
-      var willUpdate;
+      return (this._onUpdateWill() || this._updateCycle())
+          .then(this._onUpdateDid.bind(this), this._onUpdateRejected.bind(this));
+    },
+
+    /**
+     * @private
+     */
+    _onUpdateWill: function() {
+
       if(this._hasListeners(WillUpdate.type)) {
-        willUpdate = new WillUpdate(this);
-        this._emitSafe(willUpdate);
+
+        var willUpdate = new WillUpdate(this);
+
+        if(!this._emitSafe(willUpdate))
+          return Promise.reject(willUpdate.cancelReason);
+      }
+    },
+
+    /**
+     * @private
+     */
+    _onUpdateDid: function() {
+      // First successful update?
+      if(!this._hasUpdateFull) {
+
+        if(!this._domNode)
+          return this._onUpdateRejected(new UserError("View did not set a DOM node."));
+
+        this._hasUpdateFull = true;
+
+        if(this._hasListeners(DidCreate.type))
+          this._emitSafe(new DidCreate(this));
       }
 
-      if(willUpdate && willUpdate.isCanceled) {
-        this._isUpdating = false;
+      // J.I.C.
+      this._dirtyRegions.clear();
+      this._isUpdating = false;
 
-        if(this._hasListeners(RejectedUpdate.type))
-          this._emitSafe(new RejectedUpdate(this, willUpdate.cancelReason));
+      // ---
 
-        return Promise.reject(willUpdate.cancelReason);
-      }
+      if(this._hasListeners(DidUpdate.type))
+        this._emitSafe(new DidUpdate(this));
+    },
 
-      var me = this, hadDomNode = this.domNode;
-      return Promise.resolve(me._updateLoop()).then(function() {
-          if(!hadDomNode && me.domNode && me._hasListeners(DidCreate.type))
-            me._emitSafe(new DidCreate(me));
+    /**
+     * @private
+     */
+    _onUpdateRejected: function(reason) {
 
-          me._isUpdating = false;
-          me._dirtyState.set(View.DIRTY.CLEAN);
+      this._isUpdating = false;
 
-          if(me._hasListeners(DidUpdate.type))
-            me._emitSafe(new DidUpdate(me));
+      // ---
 
-        }, function(reason) {
-          me._isUpdating = false;
+      if(this._hasListeners(RejectedUpdate.type))
+        this._emitSafe(new RejectedUpdate(this, reason));
 
-          if(me._hasListeners(RejectedUpdate.type))
-            me._emitSafe(new RejectedUpdate(me, reason.error));
-
-          return Promise.reject(reason.error);
-        });
+      return Promise.reject(reason);
     },
 
     /**
@@ -239,90 +308,69 @@ define([
      *
      * @private
      */
-    _updateLoop: function() {
-      var dirtyState = this._dirtyState;
-      if(dirtyState.is(View.DIRTY.CLEAN)) return Promise.resolve();
+    _updateCycle: function() {
+
+      var dirtyRegions = this._dirtyRegions;
+      if(dirtyRegions.isEmpty)
+        return Promise.resolve();
 
       var validationErrors = this._validate();
       if(validationErrors) {
-        var error = "View update was rejected:\n - " +
+        var error = "View model is invalid:\n - " +
           (Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors);
 
-        return Promise.reject(ActionResult.reject(error));
+        return Promise.reject(new UserError(error));
       }
 
-      var renderRegistry = [
-        {
-          mask: View.DIRTY.RESIZE,
-          method: this._updateSize
-        }, {
-          mask: View.DIRTY.SELECTION, // In CCC: View.DIRTY.RESIZE + View.DIRTY.SELECTION
-          method: this._updateSelection
-        }
-      ];
+      // ---
 
-      var firstRenderer = {
-        mask: View.DIRTY.FULL,
-        method: this._update
-      };
-
-      renderRegistry.some(function(renderer){
-        if(dirtyState.isSubsetOf(renderer.mask)){
-          firstRenderer = renderer;
-          return true;
-        }
-      });
+      var updateInfo = this._getUpdateMethod(dirtyRegions);
 
       var me = this;
       try {
-        return Promise.resolve(firstRenderer.method.call(this))
+        return Promise.resolve(updateInfo.method.call(this))
           .then(function() {
 
-            dirtyState.clear(firstRenderer.mask);
-            return me._updateLoop();
+            dirtyRegions.clear(updateInfo.mask);
+
+            return me._updateCycle();
           });
 
       } catch(e) {
-        return Promise.reject(ActionResult.reject(e.message));
+        return Promise.reject(e);
+      }
+    },
+
+    /**
+     * @protected
+     */
+    _getUpdateMethod: function(dirtyRegions) {
+
+      var firstRenderer = {
+        mask:   View.REGIONS.ALL,
+        method: this._update
+      };
+
+      if(!dirtyRegions.is(View.REGIONS.ALL)) {
+        var renderRegistry = [
+          {
+            mask:   View.REGIONS.SIZE,
+            method: this._updateSize
+          }, {
+            mask:   View.REGIONS.SELECTION, // In CCC: View.REGIONS.SIZE + View.REGIONS.SELECTION
+            method: this._updateSelection
+          }
+        ];
+
+        renderRegistry.some(function(renderer) {
+          if(dirtyRegions.isSubsetOf(renderer.mask)) {
+            firstRenderer = renderer;
+            return true;
+          }
+        });
       }
 
-    },
-
-    /**
-     * Called before the visualization is discarded.
-     */
-    dispose: function() {
-      this._domNode = null;
-    },
-
-    /**
-     * Sets the DOM node that the visualization will use to render itself.
-     *
-     * @param {?(Node|Text|HTMLElement)} domNode - Visualization's DOM node.
-     * @protected
-     */
-    _setDomNode: function(domNode) {
-      if(!domNode)  throw error.argRequired("domNode");
-      
-      if(this._domNode && domNode !== this._domNode)
-        throw new Error("Can't change the visualization dom node once it is set.");
-
-      this._domNode = domNode;
-    },
-
-    /**
-     * Initializes the visualization.
-     *
-     * This method is invoked by the constructor of `pentaho.visual.base.View`.
-     * Override this method to perform initialization tasks,
-     * such as setting up event listeners.
-     *
-     * @protected
-     */
-    _init: function() {
-      this.model.on("did:change", function(event) {
-        this._onChange(event.changeset);
-      }.bind(this));
+      return firstRenderer;
     },
 
     /**
@@ -335,8 +383,7 @@ define([
      * @protected
      */
     _validate: function() {
-      var validationErrors = this.model.validate();
-      return validationErrors;
+      return this.model.validate();
     },
 
     /**
@@ -361,7 +408,7 @@ define([
      * @protected
      * @abstract
      */
-    _update: /* istanbul ignore next: placeholder method */ function() {
+    _update: function() {
       throw error.notImplemented("_update");
     },
 
@@ -375,7 +422,7 @@ define([
      *
      * @protected
      */
-    _updateSize: /* istanbul ignore next: placeholder method */ function() {
+    _updateSize: function() {
       this._update();
     },
 
@@ -390,9 +437,26 @@ define([
      *
      * @protected
      */
-    _updateSelection:
-    /* istanbul ignore next: placeholder method */function(newSelectionFilter, previousSelectionFilter) {
+    _updateSelection: function() {
       this._update();
+    },
+
+    /**
+     * @private
+     */
+    _processModelChange: function(event) {
+
+      this._onModelChange(event.changeset);
+
+      if(this.isAutoUpdate) {
+
+        this.update().then(function() {
+          logger.info("Auto-update succeeded!");
+        }, function(errors) {
+          logger.warn("Auto-update canceled:\n - " +
+              (Array.isArray(errors) ? errors.join("\n - ") : errors));
+        });
+      }
     },
 
     /**
@@ -422,9 +486,7 @@ define([
      *
      * @protected
      */
-    _onChange: function(changeset) {
-      if(!changeset.hasChanges) return;
-      var dirtyState = this._dirtyState;
+    _onModelChange: function(changeset) {
 
       var exclusionList = {
         width: true,
@@ -436,39 +498,39 @@ define([
       var isFullyDirty = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
       if(isFullyDirty) {
 
-        dirtyState.set();
+        this._dirtyRegions.set();
 
       } else {
 
         var isSizeDirty = changeset.hasChange("width") || changeset.hasChange("height");
-        if(isSizeDirty) dirtyState.set(View.DIRTY.RESIZE);
+        if(isSizeDirty) this._dirtyRegions.set(View.REGIONS.SIZE);
 
         var isSelectionDirty = changeset.hasChange("selectionFilter");
-        if(isSelectionDirty) dirtyState.set(View.DIRTY.SELECTION);
+        if(isSelectionDirty) this._dirtyRegions.set(View.REGIONS.SELECTION);
 
       }
+    },
 
-      if(!this.isAutoUpdate){
-        return;
+    /**
+     * Called before the visualization is discarded.
+     */
+    dispose: function() {
+      this._domNode = null;
+
+      if(this._handleDidChange) {
+        this.model.off(this._handleDidChange);
+        this._handleDidChange = null;
       }
-
-      this.update().then(function() {
-        logger.info("Auto-update succeeded!");
-      }, function(errors) {
-        logger.warn("Auto-update canceled:\n - " +
-          (Array.isArray(errors) ? errors.join("\n - ") : errors));
-      });
-
     }
   }, {
-    DIRTY: {
-      CLEAN: 0,
-      FULL: ~0,
-      RESIZE: 1,
-      SELECTION: 2
+    REGIONS: {
+      NONE:       0,
+      SIZE:       1,
+      SELECTION:  2,
+      ALL:       ~0
     }
-  }).implement(EventSource);
+  })
+  .implement(EventSource);
 
   return View;
-
 });

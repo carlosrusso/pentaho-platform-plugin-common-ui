@@ -5,16 +5,21 @@ define([
   "pentaho/type/events/DidChange",
   "tests/test-utils",
   "tests/pentaho/util/errorMatch"
-], function(View, modelFactory, Context, DidChange,
-            testUtils, errorMatch) {
+], function(View, modelFactory, Context, DidChange, testUtils, errorMatch) {
+
   "use strict";
 
   /*global document:false*/
 
-  describe("pentaho/visual/base/View", function() {
-    var Model, model, listeners;
+  // Allow ~0
+  // jshint -W016
+
+  describe("pentaho.visual.base.View", function() {
+
+    var Model, model;
 
     beforeEach(function() {
+
       var dataTableSpec = {
         model: [
           {name: "country", type: "string", label: "Country"},
@@ -25,6 +30,7 @@ define([
           {c: [{v: "Ireland"}, {v: 6000}]}
         ]
       };
+
       var dataSpec = {
         width: 1,
         height: 1,
@@ -32,23 +38,26 @@ define([
           v: dataTableSpec
         }
       };
+
       var context = new Context();
       Model = context.get(modelFactory);
       model = new Model(dataSpec);
 
       // stress-test: have a change on the model take some time to complete
       // enable locally while developing tests
-      false && model.on("will:change", function(){
+      /*
+      model.on("will:change", function(){
         var t0 = new Date().valueOf();
         var waitPeriod = 1000; // in ms
         while(new Date().valueOf() < t0  + waitPeriod){};
       });
-
+      */
     });
 
-    describe("the constructor ", function() {
+    describe("new (model)", function() {
 
       it("should throw if invoked with no arguments", function() {
+
         expect(function() {
           return new View();
         }).toThrow(errorMatch.argRequired("model"));
@@ -56,14 +65,15 @@ define([
         expect(function() {
           return new View(model);
         }).not.toThrow();
-      });
 
+      });
     });
 
-    describe("validation: ", function() {
+    describe("validation", function() {
 
       it("should be valid if the model is valid", function() {
         var view = new View(model);
+
         expect(model.validate()).toBeNull(); //Null === no errors
         expect(view._isValid()).toBe(true);
       });
@@ -71,18 +81,19 @@ define([
       it("should be invalid if the model is invalid", function() {
         var model = new Model();
         var view = new View(model);
+
         expect(model.validate()).not.toBeNull(); //Null === no errors
         expect(view._isValid()).toBe(false);
       });
     });
 
     describe("#update", function() {
-      var view, element = document.createElement("div");
+
       var it = testUtils.itAsync;
 
       var DerivedView = View.extend({
         _update: function() {
-          this._setDomNode(element);
+          this._setDomNode(document.createElement("div"));
           return "Rendered";
         }
       });
@@ -95,47 +106,50 @@ define([
         _update: function() { throw new Error("Some error"); }
       });
 
-      beforeEach(function() {
-        view = null;
-
-        listeners = jasmine.createSpyObj('listeners', [
+      function createListeners() {
+        return jasmine.createSpyObj('listeners', [
           'didCreate',
           'willUpdate',
           'didUpdate',
           'rejectedUpdate'
         ]);
-
-      });
-
-      function createView(ViewClass) {
-        view = new ViewClass(model);
-
-        view.on("will:update", listeners.willUpdate);
-        view.on("did:update", listeners.didUpdate);
-        view.on("rejected:update", listeners.rejectedUpdate);
-
-        view.on("did:create", listeners.didCreate);
       }
 
-      function expectError(errorMessage, expectedMessage) {
+      function createView(ViewClass, listeners) {
+
+        var view = new ViewClass(model);
+        if(listeners) {
+          view.on("will:update",     listeners.willUpdate);
+          view.on("did:update",      listeners.didUpdate);
+          view.on("rejected:update", listeners.rejectedUpdate);
+          view.on("did:create",      listeners.didCreate);
+        }
+
+        return view;
+      }
+
+      function expectError(listeners, errorMessage, expectedMessage) {
         expect(listeners.didUpdate).not.toHaveBeenCalled();
         expect(expectedMessage).toBe(errorMessage);
       }
 
-      function expectValidationError(errorMessage, expectedMessage) {
-        expectError("View update was rejected:\n - " + expectedMessage, errorMessage);
+      function expectValidationError(listeners, errorMessage, expectedMessage) {
+        expectError(listeners, "View model is invalid:\n - " + expectedMessage, errorMessage);
       }
 
-      it("should call the `will:update` event listener if the view is valid", function() {
-        createView(DerivedView);
+      it("should call the `will:update` event listeners if the view is valid", function() {
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
 
         return view.update().then(function() {
           expect(listeners.willUpdate).toHaveBeenCalled();
         });
       });
 
-      it("should call the `did:update` event listener if the view is valid and called `_update", function() {
-        createView(DerivedView);
+      it("should call the `did:update` event listeners if the view is valid and `_update` was called", function() {
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
+
         spyOn(view, '_update').and.callThrough();
 
         return view.update().then(function() {
@@ -145,7 +159,8 @@ define([
       });
 
       it("should not call the `will:update` event listener if the view is invalid", function() {
-        createView(ValidationErrorView);
+        var listeners = createListeners();
+        var view = createView(ValidationErrorView, listeners);
 
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
@@ -156,7 +171,8 @@ define([
       });
 
       it("should call the `rejected:update` event listener if the view `will:update` event is canceled", function() {
-        createView(DerivedView);
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
 
         listeners.willUpdate.and.callFake(function(event) {
           event.cancel("I was canceled");
@@ -165,35 +181,38 @@ define([
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
         }, function(reason) {
-          expectError(reason.message, "I was canceled");
+          expectError(listeners, reason.message, "I was canceled");
           expect(listeners.rejectedUpdate).toHaveBeenCalled();
         });
       });
 
       it("should call the `rejected:update` event listener if the view is invalid", function() {
-        createView(ValidationErrorView);
+        var listeners = createListeners();
+        var view = createView(ValidationErrorView, listeners);
 
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
         }, function(reason) {
-          expectValidationError(reason.message, "Some error");
+          expectValidationError(listeners, reason.message, "Some error");
           expect(listeners.rejectedUpdate).toHaveBeenCalled();
         });
       });
 
       it("should call the `rejected:update` event listener if `_update` throws", function() {
-        createView(UpdateErrorView);
+        var listeners = createListeners();
+        var view = createView(UpdateErrorView, listeners);
 
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
         }, function(reason) {
-          expectError(reason.message, "Some error");
+          expectError(listeners, reason.message, "Some error");
           expect(listeners.rejectedUpdate).toHaveBeenCalled();
         });
       });
 
       it("should invoke `_update` if the view is valid", function() {
-        createView(DerivedView);
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
 
         spyOn(view, '_update').and.callThrough();
 
@@ -202,169 +221,182 @@ define([
         });
       });
 
-      it("should create the visualization DOM element if the view is valid", function() {
-        createView(DerivedView);
-        spyOn(view, '_setDomNode').and.callThrough();
+      it("should reject the update if the first successful update does not set a DOM node", function() {
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
 
-        expect(view.domNode).toBeNull();
+        expect(view.domNode).toBe(null);
+
+        spyOn(view, '_setDomNode');
+
         return view.update().then(function() {
-          expect(view._setDomNode).toHaveBeenCalled();
-          expect(view.domNode instanceof HTMLElement).toBe(true);
+          fail("Expected update to be rejected.");
+        }, function(reason) {
+          expect(reason instanceof Error).toBe(true);
         });
-
       });
 
-      it("should emit a 'did:create' event before the first update", function() {
-        createView(DerivedView);
+      it("should emit a 'did:create' event before the first 'did:update'", function() {
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
         
-        var created = false, updated = false;
         listeners.didCreate.and.callFake(function() {
-          created = true;
-          expect(updated).toBe(false);
+          expect(listeners.didUpdate).not.toHaveBeenCalled();
         });
 
         listeners.didUpdate.and.callFake(function() {
-          updated = true;
-          expect(created).toBe(true);
+          expect(listeners.didCreate).toHaveBeenCalled();
         });
 
         return view.update().then(function() {
-          expect(created).toBe(true);
-          expect(updated).toBe(true);
+          expect(listeners.didCreate).toHaveBeenCalled();
+          expect(listeners.didUpdate).toHaveBeenCalled();
         });
-
       });
 
       it("should not create the visualization DOM element if the view is invalid", function() {
-        createView(ValidationErrorView);
-        spyOn(view, '_setDomNode').and.callThrough();
+
+        var view = createView(ValidationErrorView);
+
+        spyOn(view, '_setDomNode');
 
         return view.update().then(function() {
-          expect(listeners.didUpdate).not.toHaveBeenCalled();
+          fail("Expected update to have been rejected.");
         }, function(reason) {
-          expectValidationError(reason.message, "Some error");
           expect(view._setDomNode).not.toHaveBeenCalled();
-          expect(view.domNode).toBeNull();
         });
-
       });
 
       it("should not let the visualization's DOM element be set more than once", function() {
-        createView(DerivedView);
+        var listeners = createListeners();
+        var view = createView(DerivedView, listeners);
 
         var element = document.createElement("div");
         view._setDomNode(element);
+
         expect(view.domNode).toBe(element);
+
         expect(function() {
           view._setDomNode(document.createElement("span"));
-        }).toThrowError("Can't change the visualization dom node once it is set.");
-
+        }).toThrow(errorMatch.operInvalid());
       });
 
       it("should not emit a 'did:create' event if the view is invalid", function() {
-        createView(ValidationErrorView);
+        var listeners = createListeners();
+        var view = createView(ValidationErrorView, listeners);
 
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
         }, function(reason) {
-          expectValidationError(reason.message, "Some error");
+          expectValidationError(listeners, reason.message, "Some error");
         });
-
       });
 
       it("should not emit a 'did:create' event if `_validate` throws", function() {
-        createView(ValidationErrorView);
+        var listeners = createListeners();
+        var view = createView(ValidationErrorView, listeners);
 
         return view.update().then(function() {
           expect(listeners.didUpdate).not.toHaveBeenCalled();
         }, function(reason) {
-          expectValidationError(reason.message, "Some error");
+          expectValidationError(listeners, reason.message, "Some error");
         });
-
       });
     });
 
     describe("#update (handling of dirty bits)", function() {
 
-      var view, _updateSize, _update, _updateSelection;
+      var it = testUtils.itAsync;
 
-      beforeEach(function() {
-
-        view = new View(model);
+      function createView(model) {
+        var view = new View(model);
+        view._setDomNode(document.createElement("div"));
 
         view.isAutoUpdate = false;
-        view._dirtyState.clear(); // view is clean
-
-        // Setup spies
-        _updateSize = spyOn(view, "_updateSize");
-        _updateSelection = spyOn(view, "_updateSelection");
-        _update = spyOn(view, "_update");
+        view._dirtyRegions.clear(); // view is clean
 
         // Ensure view is always valid
         spyOn(view, "_validate").and.returnValue(null);
-      });
 
-      var it = testUtils.itAsync;
+        return view;
+      }
 
-      it("should call #_updateSize when the RESIZE bit is set", function() {
+      function createUpdateSpies(view) {
+        return {
+          updateSize:      spyOn(view, "_updateSize"),
+          updateSelection: spyOn(view, "_updateSelection"),
+          update:          spyOn(view, "_update")
+        };
+      }
 
-        view._dirtyState.set(View.DIRTY.RESIZE);
+      it("should call #_updateSize when the SIZE bit is set", function() {
+
+        var view  = createView(model);
+        var spies = createUpdateSpies(view);
+
+        view._dirtyRegions.set(View.REGIONS.SIZE);
 
         return view.update().then(function() {
-          expect(_updateSize).toHaveBeenCalled();
-          expect(_updateSelection).not.toHaveBeenCalled();
-          expect(_update).not.toHaveBeenCalled();
+          expect(spies.updateSize).toHaveBeenCalled();
+          expect(spies.updateSelection).not.toHaveBeenCalled();
+          expect(spies.update).not.toHaveBeenCalled();
         });
       });
 
       it("should call #_updateSelection when the SELECTION bit is set", function() {
 
-        view._dirtyState.set(View.DIRTY.SELECTION);
+        var view = createView(model);
+        var spies = createUpdateSpies(view);
+
+        view._dirtyRegions.set(View.REGIONS.SELECTION);
 
         return view.update().then(function() {
-          expect(_updateSize).not.toHaveBeenCalled();
-          expect(_updateSelection).toHaveBeenCalled();
-          expect(_update).not.toHaveBeenCalled();
+          expect(spies.updateSize).not.toHaveBeenCalled();
+          expect(spies.updateSelection).toHaveBeenCalled();
+          expect(spies.update).not.toHaveBeenCalled();
         });
       });
 
-      it("should call #_update when both the RESIZE and SELECTION bits are set", function() {
+      it("should call #_update when both the SIZE and SELECTION bits are set", function() {
+        var view = createView(model);
+        var spies = createUpdateSpies(view);
 
-        view._dirtyState.set(View.DIRTY.RESIZE | View.DIRTY.SELECTION);
+        view._dirtyRegions.set(View.REGIONS.SIZE | View.REGIONS.SELECTION);
 
         return view.update().then(function() {
-          expect(_updateSize).not.toHaveBeenCalled();
-          expect(_updateSelection).not.toHaveBeenCalled();
-          expect(_update).toHaveBeenCalled();
+          expect(spies.updateSize).not.toHaveBeenCalled();
+          expect(spies.updateSelection).not.toHaveBeenCalled();
+          expect(spies.update).toHaveBeenCalled();
         });
       });
     });
 
-    describe("#onChange", function(){
-      var view, _update;
+    describe("#_onModelChange", function(){
+      var view;
 
       beforeEach(function() {
 
         view = new View(model);
 
         view.isAutoUpdate = false;
-        view._dirtyState.clear();
+        view._dirtyRegions.clear();
+
         expect(view.isDirty).toBe(false); // view is clean
       });
 
-      it("should set the RESIZE bit when only 'height' changes", function() {
+      it("should set the SIZE bit when only 'height' changes", function() {
         model.height = 100;
-        expect(view._dirtyState.is(View.DIRTY.RESIZE)).toBe(true);
+        expect(view._dirtyRegions.is(View.REGIONS.SIZE)).toBe(true);
       });
 
-      it("should set the RESIZE bit when only 'width' changes", function() {
+      it("should set the SIZE bit when only 'width' changes", function() {
         model.width = 100;
-        expect(view._dirtyState.is(View.DIRTY.RESIZE)).toBe(true);
+        expect(view._dirtyRegions.is(View.REGIONS.SIZE)).toBe(true);
       });
 
       it("should set the SELECTION bit  when 'selectionFilter' changes", function() {
         model.selectionFilter = null;
-        expect(view._dirtyState.is(View.DIRTY.SELECTION)).toBe(true);
+        expect(view._dirtyRegions.is(View.REGIONS.SELECTION)).toBe(true);
       });
 
       it("should not set the view as dirty when 'selectionMode' changes", function() {
@@ -372,13 +404,12 @@ define([
         expect(view.isDirty).toBe(false);
       });
 
-      it("should set the view as completely dirty when a property other than 'height', 'width' or 'selectionFilter' changes", function() {
+      it("should set the view as completely dirty when a property other than " +
+         "'height', 'width' or 'selectionFilter' changes", function() {
         model.isInteractive = false;
-        expect(view._dirtyState.is(View.DIRTY.FULL)).toBe(true);
+        expect(view._dirtyRegions.is(View.REGIONS.ALL)).toBe(true);
       });
-
-    }); // #_onChange
-
+    }); // #_onModelChange
 
     describe("#isAutoUpdate", function() {
 
@@ -396,33 +427,34 @@ define([
       });
 
       describe("controls if the View updates in reaction to changes", function() {
-        var view, _updateSize, _update, _updateSelection;
 
-        beforeEach(function(done) {
-          var DerivedView = View.extend({
-            _update: function() {},
-            _updateSize: function() {},
-            _updateSelection: function() {},
-            _validate: function() { return null; }
-          });
+        function createView(model) {
+          var view = new View(model);
+          view._setDomNode(document.createElement("div"));
 
-          view = new DerivedView(model);
+          view.isAutoUpdate = false;
+          view._dirtyRegions.clear(); // view is clean
 
-          view.update().then(function() {
+          // Ensure view is always valid
+          spyOn(view, "_validate").and.returnValue(null);
 
-            // Setup spies after a clean update
-            _updateSize = spyOn(view, "_updateSize");
-            _updateSelection = spyOn(view, "_updateSelection");
-            _update = spyOn(view, "_update");
+          return view;
+        }
 
-            done();
-          }, done.fail);
-
-        });
-
+        function createUpdateSpies(view) {
+          return {
+            updateSize:      spyOn(view, "_updateSize"),
+            updateSelection: spyOn(view, "_updateSelection"),
+            update:          spyOn(view, "_update")
+          };
+        }
 
         it("should not trigger any update method when 'isAutoUpdate' is set to `false`", function() {
+
+          var view = createView(model);
+
           view.isAutoUpdate = false;
+
           var update = spyOn(view, "update");
 
           // trigger a set of changes
@@ -431,21 +463,19 @@ define([
           model.width = 100;
 
           expect(update).not.toHaveBeenCalled();
-
         });
 
-        describe("should resume triggering update methods when 'isAutoUpdate' is set to `true` after being at `false`", function() {
-
-          beforeEach(function() {
-            view.isAutoUpdate = false;
-          });
+        describe("should resume triggering update methods when 'isAutoUpdate' is set " +
+                 "to `true` after being at `false`", function() {
 
           it("resumes running the #_updateSelection partial update", function(done) {
-            expect(_updateSelection).not.toHaveBeenCalled();
+            var view  = createView(model);
+            var spies = createUpdateSpies(view);
+
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(_updateSelection).toHaveBeenCalled();
+              expect(spies.updateSelection).toHaveBeenCalled();
               done();
             });
 
@@ -453,11 +483,13 @@ define([
           });
 
           it("resumes running the #_updateSize partial update", function(done) {
-            expect(_updateSize).not.toHaveBeenCalled();
+            var view  = createView(model);
+            var spies = createUpdateSpies(view);
+
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(_updateSize).toHaveBeenCalled();
+              expect(spies.updateSize).toHaveBeenCalled();
               done();
             });
 
@@ -465,33 +497,37 @@ define([
           });
 
           it("resumes running #_update (full update)", function(done) {
-            expect(_update).not.toHaveBeenCalled();
+            var view  = createView(model);
+            var spies = createUpdateSpies(view);
+
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(_update).toHaveBeenCalled();
+              expect(spies.update).toHaveBeenCalled();
               done();
             });
 
             model.isInteractive = false;
           });
-
         });
       });
-
     }); // #isAutoUpdate
 
     describe("#isDirty", function() {
+
       var view;
 
       beforeEach(function() {
+
         var DerivedView = View.extend({
           _update: function() {},
           _validate: function() {
             return null;
           }
         });
+
         view = new DerivedView(model);
+        view._setDomNode(document.createElement("div"));
       });
 
       it("should be `true` when the view is created", function() {
@@ -505,6 +541,7 @@ define([
       });
 
       it("should be `false` after a full update", function(done) {
+
         expect(view.isDirty).toBe(true);
 
         view.update().then(function() {
@@ -516,16 +553,18 @@ define([
       });
 
       describe("plays along '#isAutoUpdate'", function() {
+
         beforeEach(function(done) {
           // Ensure a first render has occurred.
           // The view is thus clean (not dirty)
           view.update().then(done, done.fail);
         });
 
-        it("should mark the view as dirty when 'isAutoUpdate' is set to `false` and a change has taken place", function(done) {
+        it("should mark the view as dirty when 'isAutoUpdate' is set to `false` and a change has taken place",
+        function(done) {
           view.isAutoUpdate = false;
 
-          model.on("did:change", function(){
+          model.on("did:change", function() {
             expect(view.isDirty).toBe(true);
             done();
           });
@@ -533,10 +572,7 @@ define([
           // trigger a set of changes that ought to call the render methods
           model.selectionFilter = null;
         });
-
       });
-
     }); // #isDirty
   });
-
 });
