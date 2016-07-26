@@ -216,12 +216,21 @@ define(["./has"], function(has) {
      *
      * @param {!Object} object - The object that contains the property.
      * @param {string} property - The name of property.
-     * @return {?Object} The
-     * [property descriptor]{@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty}.
+     * @param {Object} lcaExclude - A lowest-common-ancestor object whose properties inherited from should
+     * not be returned.
+     * @return {?Object} The [property descriptor]{@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty}.
      * @method
      */
     //only used by pentaho.lang.Base
     getPropertyDescriptor: getPropertyDescriptor,
+
+    lca: function(o1, o2) {
+      if(!o1 || !o2) return null;
+
+      var lca = o2;
+      while(o1 !== lca && !lca.isPrototypeOf(o1) && (lca = Object.getPrototypeOf(lca)));
+      return lca;
+    },
 
     /**
      * Constructs an instance of a class,
@@ -314,9 +323,10 @@ define(["./has"], function(has) {
     return to;
   }
 
-  function getPropertyDescriptor(o, p) {
+  function getPropertyDescriptor(o, p, lcaExclude) {
     var pd;
-    while(!(pd = Object.getOwnPropertyDescriptor(o, p)) && (o = Object.getPrototypeOf(o)));
+    while(!(pd = Object.getOwnPropertyDescriptor(o, p)) && (o = Object.getPrototypeOf(o)) &&
+          (!lcaExclude || o !== lcaExclude));
     return pd || null;
   }
 

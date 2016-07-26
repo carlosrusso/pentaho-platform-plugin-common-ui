@@ -22,17 +22,23 @@ define([
   "./events/RejectedUpdate",
   "pentaho/lang/UserError",
   "pentaho/data/filter",
+  "pentaho/util/object",
+  "pentaho/util/fun",
   "pentaho/util/BitSet",
   "pentaho/util/error",
   "pentaho/util/logger",
-  "pentaho/shim/es6-promise"
+  "pentaho/util/promise"
 ], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, UserError,
-            filter, BitSet, error, logger, Promise) {
+            filter, O, F, BitSet, error, logger, promise) {
 
   "use strict";
 
+  /*global Promise:false */
+
   // Allow ~0
   // jshint -W016
+
+  var _reUpdateMethodName = /^_update(.+)$/;
 
   /**
    * @name pentaho.visual.base.View
@@ -108,13 +114,13 @@ define([
       this._isAutoUpdate = true;
 
       /**
-       * The set of dirty regions of the view.
+       * The set of dirty property groups of the view.
        *
        * @type {!pentaho.lang.BitSet}
        * @protected
        * @readOnly
        */
-      this._dirtyRegions = new BitSet(View.REGIONS.ALL); // mark view as initially dirty
+      this._dirtyPropGroups = new BitSet(View.PropertyGroups.All); // mark view as initially dirty
 
       /**
        * The model's "did:change" event registration handle.
@@ -208,13 +214,13 @@ define([
      * @type {boolean}
      */
     get isDirty() {
-      return !this._dirtyRegions.isEmpty;
+      return this._isUpdating || !this._dirtyPropGroups.isEmpty;
     },
 
     /**
      * Orchestrates the rendering of the visualization and is meant to be invoked by the container.
      *
-     * Executes [_update]{@link pentaho.visual.base.View#_update} asynchronously in
+     * Executes [_updateAll]{@link pentaho.visual.base.View#_updateAll} asynchronously in
      * the will/did/rejected event loop associated with an update of a visualization,
      * and also creates the visualization DOM node the first time it successfully updates.
      *
@@ -272,7 +278,7 @@ define([
       }
 
       // J.I.C.
-      this._dirtyRegions.clear();
+      this._dirtyPropGroups.clear();
       this._isUpdating = false;
 
       // ---
@@ -310,8 +316,8 @@ define([
      */
     _updateCycle: function() {
 
-      var dirtyRegions = this._dirtyRegions;
-      if(dirtyRegions.isEmpty)
+      var dirtyPropGroups = this._dirtyPropGroups;
+      if(dirtyPropGroups.isEmpty)
         return Promise.resolve();
 
       var validationErrors = this._validate();
@@ -324,53 +330,47 @@ define([
 
       // ---
 
-      var updateInfo = this._getUpdateMethod(dirtyRegions);
+      var updateMethodInfo = this._getUpdateMethodInfo(dirtyPropGroups);
 
-      var me = this;
-      try {
-        return Promise.resolve(updateInfo.method.call(this))
-          .then(function() {
+      // Assume update succeeds.
+      dirtyPropGroups.clear(updateMethodInfo.mask);
 
-            dirtyRegions.clear(updateInfo.mask);
+      return promise.wrapCall(this[updateMethodInfo.name], this)
+          .then(this._updateCycle.bind(this), function(reason) {
 
-            return me._updateCycle();
+            // Restore
+            dirtyPropGroups.set(updateMethodInfo.mask);
+
+            return Promise.reject(reason);
           });
-
-      } catch(e) {
-        return Promise.reject(e);
-      }
     },
 
     /**
      * @protected
      */
-    _getUpdateMethod: function(dirtyRegions) {
+    _getUpdateMethodInfo: function(dirtyPropGroups) {
+      var ViewClass = this.constructor;
 
-      var firstRenderer = {
-        mask:   View.REGIONS.ALL,
-        method: this._update
-      };
+      // 1. Is there an exact match?
+      var methodInfo = ViewClass.UpdateMethods[dirtyPropGroups.get()];
+      if(!methodInfo) {
 
-      if(!dirtyRegions.is(View.REGIONS.ALL)) {
-        var renderRegistry = [
-          {
-            mask:   View.REGIONS.SIZE,
-            method: this._updateSize
-          }, {
-            mask:   View.REGIONS.SELECTION, // In CCC: View.REGIONS.SIZE + View.REGIONS.SELECTION
-            method: this._updateSelection
-          }
-        ];
+        // TODO: Sequences of methods that handles the dirty bits ...
 
-        renderRegistry.some(function(renderer) {
-          if(dirtyRegions.isSubsetOf(renderer.mask)) {
-            firstRenderer = renderer;
+        // 2. Find the first method that cleans all (or more) of the dirty bits.
+        ViewClass.UpdateMethodsList.some(function(info) {
+          if(dirtyPropGroups.isSubsetOf(info.mask)) {
+            methodInfo = info;
             return true;
           }
         });
+
+        // At least the _updateAll method should be registered and be able to handle any dirty bits.
+        if(!methodInfo)
+          throw error.operInvalid("There is no registered update method to handle the current dirty property groups.");
       }
 
-      return firstRenderer;
+      return methodInfo;
     },
 
     /**
@@ -397,48 +397,6 @@ define([
      */
     _isValid: function() {
       return !this._validate();
-    },
-
-    /**
-     * Renders the visualization.
-     *
-     * Subclasses of `pentaho.visual.base.View` must override this method
-     * and implement a complete rendering of the visualization.
-     *
-     * @protected
-     * @abstract
-     */
-    _update: function() {
-      throw error.notImplemented("_update");
-    },
-
-    /**
-     * Updates the visualization, taking into account that
-     * only the dimensions have changed.
-     *
-     * Subclasses of `pentaho.visual.base.View` are expected to override this method to
-     * implement a fast and cheap resizing of the visualization.
-     * By default, this method invokes [_update]{@link pentaho.visual.base.View#_update}.
-     *
-     * @protected
-     */
-    _updateSize: function() {
-      this._update();
-    },
-
-    /**
-     * Updates the visualization, taking into account that
-     * only the selection has changed.
-     *
-     * Subclasses of `pentaho.visual.base.View` are expected to override this method
-     * with an implementation that
-     * updates the selection state of the items displayed by this visualization.
-     * By default, this method invokes [_update]{@link pentaho.visual.base.View#_update}.
-     *
-     * @protected
-     */
-    _updateSelection: function() {
-      this._update();
     },
 
     /**
@@ -473,14 +431,14 @@ define([
      * [height]{@link pentaho.visual.base.Model.Type#height} change,
      * - [_updateSelection]{@link pentaho.visual.base.View#_updateSelection} when the property
      * [selectionFilter]{@link pentaho.visual.base.Model.Type#selectionFilter} changes
-     * - [_update]{@link pentaho.visual.base.View#_update} when any other property changes.
+     * - [_updateAll]{@link pentaho.visual.base.View#_updateAll} when any other property changes.
      *
      * Subclasses of `pentaho.visual.base.View` can override this method to
      * extend the set of fast render methods.
      *
      * @see pentaho.visual.base.View#_updateSize
      * @see pentaho.visual.base.View#_updateSelection
-     * @see pentaho.visual.base.View#_update
+     * @see pentaho.visual.base.View#_updateAll
      *
      * @param {!pentaho.type.Changeset} changeset - Map of the properties that have changed.
      *
@@ -488,27 +446,15 @@ define([
      */
     _onModelChange: function(changeset) {
 
-      var exclusionList = {
-        width: true,
-        height: true,
-        selectionMode: true, // never has a direct visual impact
-        selectionFilter: true
-      };
+      var ViewClass = this.constructor;
 
-      var isFullyDirty = changeset.propertyNames.some(function(p) { return !exclusionList[p]; });
-      if(isFullyDirty) {
+      changeset.propertyNames.forEach(function(name) {
 
-        this._dirtyRegions.set();
+        var dirtyGroupName = ViewClass.PropertyGroupOfProperty[name] || "General";
 
-      } else {
+        this.set(View.PropertyGroups[dirtyGroupName]);
 
-        var isSizeDirty = changeset.hasChange("width") || changeset.hasChange("height");
-        if(isSizeDirty) this._dirtyRegions.set(View.REGIONS.SIZE);
-
-        var isSelectionDirty = changeset.hasChange("selectionFilter");
-        if(isSelectionDirty) this._dirtyRegions.set(View.REGIONS.SELECTION);
-
-      }
+      }, this._dirtyPropGroups);
     },
 
     /**
@@ -521,16 +467,145 @@ define([
         this.model.off(this._handleDidChange);
         this._handleDidChange = null;
       }
+    },
+
+    extend: function(source, keyArgs) {
+
+      this.base(source, keyArgs);
+
+      if(source) {
+        var Subclass = this.constructor;
+
+        O.eachOwn(source, function(v, methodName) {
+          var m;
+          if(F.is(v) && (m = _reUpdateMethodName.exec(methodName)) && !Subclass.UpdateMethods[methodName]) {
+
+            var methodCleansBits = parsePropertyGroupsText(Subclass, m[1]);
+            if(methodCleansBits) {
+              var updateMethodInfo = {
+                name: methodName,
+                mask: methodCleansBits
+              };
+
+              Subclass.UpdateMethods[methodCleansBits] = updateMethodInfo;
+              Subclass.UpdateMethodsList.push(updateMethodInfo);
+            }
+          }
+        });
+      }
+
+      return this;
     }
   }, {
-    REGIONS: {
-      NONE:       0,
-      SIZE:       1,
-      SELECTION:  2,
-      ALL:       ~0
-    }
+    _subclassed: function(Subclass, instSpec, classSpec, keyArgs) {
+
+      // "Inherit" PropertyGroups, PropertyGroupOfProperty, UpdateMethods and UpdateMethodsList properties
+      Subclass.PropertyGroups          = Object.create(this.PropertyGroups);
+      Subclass.PropertyGroupOfProperty = Object.create(this.PropertyGroupOfProperty);
+      Subclass.UpdateMethods           = Object.create(this.UpdateMethods);
+      Subclass.UpdateMethodsList       = this.UpdateMethodsList.slice();
+
+      this.base(Subclass, instSpec, classSpec, keyArgs);
+    },
+
+    // Inherited from base.
+    // Automatically generated.
+    // @static
+    PropertyGroups: O.assignOwn(Object.create(null), {
+      All:       ~0,
+      Ignored:    0,
+      General:    1,
+      Data:       2,
+      Size:       4,
+      Selection:  8
+    }),
+
+    // PropertyGroupOfProperty
+    PropertyGroupOfProperty: O.assignOwn(Object.create(null), {
+      "selectionMode":   "Ignored",
+      "data":            "Data",
+      "width":           "Size",
+      "height":          "Size",
+      "selectionFilter": "Selection"
+    }),
+
+    /*
+     bits -> {name: , mask: }
+     */
+    UpdateMethods: Object.create(null),
+
+    UpdateMethodsList: []
   })
-  .implement(EventSource);
+  .implement(EventSource)
+  .implement(/** @lends pentaho.visual.base.View# */{
+    //region _updateXyz Methods
+    /**
+     * Renders or updates the visualization fully.
+     *
+     * The first update of a visualization is always a full update.
+     *
+     * Subclasses of `pentaho.visual.base.View` must override this method
+     * and implement a complete rendering of the visualization.
+     *
+     * @protected
+     */
+    _updateAll: function() {
+
+    },
+
+    /**
+     * Updates the visualization, taking into account that
+     * only the dimensions have changed.
+     *
+     * Subclasses of `pentaho.visual.base.View` are expected to override this method to
+     * implement a fast and cheap resizing of the visualization.
+     * By default, this method invokes [_updateAll]{@link pentaho.visual.base.View#_updateAll}.
+     *
+     * @name _updateSize
+     * @memberOf pentaho.visual.base.View#
+     * @method
+     * @protected
+     * @optional
+     */
+    //_updateSize: function() {},
+
+    /**
+     * Updates the visualization, taking into account that
+     * only the selection has changed.
+     *
+     * Subclasses of `pentaho.visual.base.View` are expected to override this method
+     * with an implementation that
+     * updates the selection state of the items displayed by this visualization.
+     * By default, this method invokes [_updateAll]{@link pentaho.visual.base.View#_updateAll}.
+     *
+     * @name _updateSelection
+     * @memberOf pentaho.visual.base.View#
+     * @method
+     * @protected
+     * @optional
+     */
+    //_updateSelection: function() {},
+
+    //_updateSizeAndSelection: function() {},
+
+    //_updateData: function() {},
+    //endregion
+  });
+
+  function parsePropertyGroupsText(ViewClass, groupNamesText) {
+    var groupsBits = 0;
+
+    groupNamesText.split("And").forEach(function(groupName) {
+      var groupBits = ViewClass.PropertyGroups[groupName];
+      if(groupBits == null || isNaN(+groupBits)) {
+        logger.warn("There is no registered property group with name '" + groupName + "'.");
+      } else {
+        groupsBits |= groupBits;
+      }
+    });
+
+    return groupsBits;
+  }
 
   return View;
 });

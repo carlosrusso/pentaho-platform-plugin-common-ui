@@ -92,7 +92,7 @@ define([
       var it = testUtils.itAsync;
 
       var DerivedView = View.extend({
-        _update: function() {
+        _updateAll: function() {
           this._setDomNode(document.createElement("div"));
           return "Rendered";
         }
@@ -103,7 +103,7 @@ define([
       });
 
       var UpdateErrorView = View.extend({
-        _update: function() { throw new Error("Some error"); }
+        _updateAll: function() { throw new Error("Some error"); }
       });
 
       function createListeners() {
@@ -146,14 +146,14 @@ define([
         });
       });
 
-      it("should call the `did:update` event listeners if the view is valid and `_update` was called", function() {
+      it("should call the `did:update` event listeners if the view is valid and `_updateAll` was called", function() {
         var listeners = createListeners();
         var view = createView(DerivedView, listeners);
 
-        spyOn(view, '_update').and.callThrough();
+        spyOn(view, '_updateAll').and.callThrough();
 
         return view.update().then(function() {
-          expect(view._update).toHaveBeenCalled();
+          expect(view._updateAll).toHaveBeenCalled();
           expect(listeners.didUpdate).toHaveBeenCalled();
         });
       });
@@ -198,7 +198,7 @@ define([
         });
       });
 
-      it("should call the `rejected:update` event listener if `_update` throws", function() {
+      it("should call the `rejected:update` event listener if `_updateAll` throws", function() {
         var listeners = createListeners();
         var view = createView(UpdateErrorView, listeners);
 
@@ -210,14 +210,14 @@ define([
         });
       });
 
-      it("should invoke `_update` if the view is valid", function() {
+      it("should invoke `_updateAll` if the view is valid", function() {
         var listeners = createListeners();
         var view = createView(DerivedView, listeners);
 
-        spyOn(view, '_update').and.callThrough();
+        spyOn(view, '_updateAll').and.callThrough();
 
         return view.update().then(function() {
-          expect(view._update).toHaveBeenCalled();
+          expect(view._updateAll).toHaveBeenCalled();
         });
       });
 
@@ -308,12 +308,17 @@ define([
 
       var it = testUtils.itAsync;
 
+      var DerivedView = View.extend({
+        _updateSize: function() {},
+        _updateSelection: function() {}
+      });
+
       function createView(model) {
-        var view = new View(model);
+        var view = new DerivedView(model);
         view._setDomNode(document.createElement("div"));
 
         view.isAutoUpdate = false;
-        view._dirtyRegions.clear(); // view is clean
+        view._dirtyPropGroups.clear(); // view is clean
 
         // Ensure view is always valid
         spyOn(view, "_validate").and.returnValue(null);
@@ -325,48 +330,48 @@ define([
         return {
           updateSize:      spyOn(view, "_updateSize"),
           updateSelection: spyOn(view, "_updateSelection"),
-          update:          spyOn(view, "_update")
+          updateAll:       spyOn(view, "_updateAll")
         };
       }
 
-      it("should call #_updateSize when the SIZE bit is set", function() {
+      it("should call #_updateSize when the Size bit is set", function() {
 
         var view  = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyRegions.set(View.REGIONS.SIZE);
+        view._dirtyPropGroups.set(View.PropertyGroups.Size);
 
         return view.update().then(function() {
           expect(spies.updateSize).toHaveBeenCalled();
           expect(spies.updateSelection).not.toHaveBeenCalled();
-          expect(spies.update).not.toHaveBeenCalled();
+          expect(spies.updateAll).not.toHaveBeenCalled();
         });
       });
 
-      it("should call #_updateSelection when the SELECTION bit is set", function() {
+      it("should call #_updateSelection when the Selection bit is set", function() {
 
         var view = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyRegions.set(View.REGIONS.SELECTION);
+        view._dirtyPropGroups.set(View.PropertyGroups.Selection);
 
         return view.update().then(function() {
           expect(spies.updateSize).not.toHaveBeenCalled();
           expect(spies.updateSelection).toHaveBeenCalled();
-          expect(spies.update).not.toHaveBeenCalled();
+          expect(spies.updateAll).not.toHaveBeenCalled();
         });
       });
 
-      it("should call #_update when both the SIZE and SELECTION bits are set", function() {
+      it("should call #_updateAll when both the Size and Selection bits are set", function() {
         var view = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyRegions.set(View.REGIONS.SIZE | View.REGIONS.SELECTION);
+        view._dirtyPropGroups.set(View.PropertyGroups.Size | View.PropertyGroups.Selection);
 
         return view.update().then(function() {
           expect(spies.updateSize).not.toHaveBeenCalled();
           expect(spies.updateSelection).not.toHaveBeenCalled();
-          expect(spies.update).toHaveBeenCalled();
+          expect(spies.updateAll).toHaveBeenCalled();
         });
       });
     });
@@ -379,24 +384,24 @@ define([
         view = new View(model);
 
         view.isAutoUpdate = false;
-        view._dirtyRegions.clear();
+        view._dirtyPropGroups.clear();
 
         expect(view.isDirty).toBe(false); // view is clean
       });
 
-      it("should set the SIZE bit when only 'height' changes", function() {
+      it("should set the Size bit when only 'height' changes", function() {
         model.height = 100;
-        expect(view._dirtyRegions.is(View.REGIONS.SIZE)).toBe(true);
+        expect(view._dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
       });
 
-      it("should set the SIZE bit when only 'width' changes", function() {
+      it("should set the Size bit when only 'width' changes", function() {
         model.width = 100;
-        expect(view._dirtyRegions.is(View.REGIONS.SIZE)).toBe(true);
+        expect(view._dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
       });
 
-      it("should set the SELECTION bit  when 'selectionFilter' changes", function() {
+      it("should set the Selection bit  when 'selectionFilter' changes", function() {
         model.selectionFilter = null;
-        expect(view._dirtyRegions.is(View.REGIONS.SELECTION)).toBe(true);
+        expect(view._dirtyPropGroups.is(View.PropertyGroups.Selection)).toBe(true);
       });
 
       it("should not set the view as dirty when 'selectionMode' changes", function() {
@@ -404,10 +409,10 @@ define([
         expect(view.isDirty).toBe(false);
       });
 
-      it("should set the view as completely dirty when a property other than " +
+      it("should set the General bit when a property other than " +
          "'height', 'width' or 'selectionFilter' changes", function() {
         model.isInteractive = false;
-        expect(view._dirtyRegions.is(View.REGIONS.ALL)).toBe(true);
+        expect(view._dirtyPropGroups.is(View.PropertyGroups.General)).toBe(true);
       });
     }); // #_onModelChange
 
@@ -428,12 +433,17 @@ define([
 
       describe("controls if the View updates in reaction to changes", function() {
 
+        var DerivedView = View.extend({
+          _updateSize: function() {},
+          _updateSelection: function() {}
+        });
+
         function createView(model) {
-          var view = new View(model);
+          var view = new DerivedView(model);
           view._setDomNode(document.createElement("div"));
 
           view.isAutoUpdate = false;
-          view._dirtyRegions.clear(); // view is clean
+          view._dirtyPropGroups.clear(); // view is clean
 
           // Ensure view is always valid
           spyOn(view, "_validate").and.returnValue(null);
@@ -445,7 +455,7 @@ define([
           return {
             updateSize:      spyOn(view, "_updateSize"),
             updateSelection: spyOn(view, "_updateSelection"),
-            update:          spyOn(view, "_update")
+            updateAll:       spyOn(view, "_updateAll")
           };
         }
 
@@ -466,7 +476,7 @@ define([
         });
 
         describe("should resume triggering update methods when 'isAutoUpdate' is set " +
-                 "to `true` after being at `false`", function() {
+                 "to `true` after being `false`", function() {
 
           it("resumes running the #_updateSelection partial update", function(done) {
             var view  = createView(model);
@@ -496,14 +506,14 @@ define([
             model.width = 100; // marks the view as dirty
           });
 
-          it("resumes running #_update (full update)", function(done) {
+          it("resumes running #_updateAll (full update)", function(done) {
             var view  = createView(model);
             var spies = createUpdateSpies(view);
 
             view.isAutoUpdate = true;
 
             view.on("did:update", function() {
-              expect(spies.update).toHaveBeenCalled();
+              expect(spies.updateAll).toHaveBeenCalled();
               done();
             });
 
@@ -520,7 +530,7 @@ define([
       beforeEach(function() {
 
         var DerivedView = View.extend({
-          _update: function() {},
+          _updateAll: function() {},
           _validate: function() {
             return null;
           }
