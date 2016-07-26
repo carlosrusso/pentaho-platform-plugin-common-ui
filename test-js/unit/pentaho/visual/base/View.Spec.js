@@ -700,7 +700,7 @@ define([
         view.update().then(done, done.fail);
       });
 
-      it("should be `false` when 'did:create' is called", function(done) {
+      it("should be `false` when 'did:update' is called", function(done) {
 
         view.on("did:update", function() {
           expect(view.isDirty).toBe(false);
@@ -709,7 +709,7 @@ define([
         view.update().then(done, done.fail);
       });
 
-      it("should be `true` when 'rejected:create' is called", function(done) {
+      it("should be `true` when 'rejected:update' is called", function(done) {
 
         spyOn(view, "_updateAll").and.returnValue(Promise.reject("Just because."));
 
@@ -720,7 +720,7 @@ define([
         view.update().then(done.fail, done);
       });
 
-      it("should be `false` after a sucessful update", function(done) {
+      it("should be `false` after a successful update", function(done) {
 
         expect(view.isDirty).toBe(true);
 
@@ -743,6 +743,81 @@ define([
         expect(view.isDirty).toBe(true);
       });
     }); // #isDirty
+
+    describe("#isUpdating", function() {
+
+      var view;
+
+      var DerivedView = View.extend({
+        _updateAll: function() {},
+        _validate:  function() { return null; }
+      });
+
+      beforeEach(function() {
+        view = new DerivedView(model);
+        view._setDomNode(document.createElement("div"));
+      });
+
+      it("should be `false` when the view is created", function() {
+        expect(view.isUpdating).toBe(false);
+      });
+
+      it("should be read-only", function() {
+        expect(function() {
+          view.isUpdating = false;
+        }).toThrowError(TypeError);
+      });
+
+      it("should be `true` when 'will:update' is called", function(done) {
+
+        view.on("will:update", function() {
+          expect(view.isUpdating).toBe(true);
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `true` during a call to one of the _updateZyx methods", function(done) {
+
+        spyOn(view, "_updateAll").and.callFake(function() {
+
+          expect(view.isUpdating).toBe(true);
+
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `false` when 'did:udpate' is called", function(done) {
+
+        view.on("did:update", function() {
+          expect(view.isUpdating).toBe(false);
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `false` when 'rejected:update' is called", function(done) {
+
+        spyOn(view, "_updateAll").and.returnValue(Promise.reject("Just because."));
+
+        view.on("rejected:update", function() {
+          expect(view.isUpdating).toBe(false);
+        });
+
+        view.update().then(done.fail, done);
+      });
+
+      it("should be `false` after a successful update", function(done) {
+
+        view.update().then(function() {
+
+          expect(view.isUpdating).toBe(false);
+
+          done();
+        }, done.fail);
+      });
+    }); // #isUpdating
 
     describe("#dispose", function() {
 
