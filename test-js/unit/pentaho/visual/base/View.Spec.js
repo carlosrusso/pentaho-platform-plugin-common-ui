@@ -9,7 +9,7 @@ define([
 
   "use strict";
 
-  /*global document:false*/
+  /*global document:false, Promise:false, TypeError:false, spyOn:false, expect:false, jasmine:false */
 
   // Allow ~0
   // jshint -W016
@@ -90,6 +90,15 @@ define([
     describe("#update", function() {
 
       var it = testUtils.itAsync;
+
+      var SimpleView = View.extend({
+        _init: function() {
+
+          this.base();
+
+          this._setDomNode(document.createElement("div"));
+        }
+      });
 
       var DerivedView = View.extend({
         _updateAll: function() {
@@ -254,6 +263,25 @@ define([
         });
       });
 
+      it("should emit a 'did:create' event before the first 'did:update', " +
+         "even when the dom node is set on _init", function() {
+        var listeners = createListeners();
+        var view = createView(SimpleView, listeners);
+
+        listeners.didCreate.and.callFake(function() {
+          expect(listeners.didUpdate).not.toHaveBeenCalled();
+        });
+
+        listeners.didUpdate.and.callFake(function() {
+          expect(listeners.didCreate).toHaveBeenCalled();
+        });
+
+        return view.update().then(function() {
+          expect(listeners.didCreate).toHaveBeenCalled();
+          expect(listeners.didUpdate).toHaveBeenCalled();
+        });
+      });
+
       it("should not create the visualization DOM element if the view is invalid", function() {
 
         var view = createView(ValidationErrorView);
@@ -302,6 +330,42 @@ define([
           expectValidationError(listeners, reason.message, "Some error");
         });
       });
+
+      it("should return a promise to the current update when an update operation " +
+         "is already undergoing (nested)", function() {
+        var view = createView(SimpleView);
+
+        var pDuring = null;
+
+        spyOn(view, "_updateAll").and.callFake(function() {
+          pDuring = view.update();
+        });
+
+        var pOuter = view.update();
+
+        return pOuter.then(function() {
+          expect(pOuter).toBe(pDuring);
+        });
+      });
+
+      it("should return a promise to the current update when an update operation " +
+         "is already undergoing (async)", function() {
+        var view = createView(SimpleView);
+
+        var _resolve = null;
+
+        spyOn(view, "_updateAll").and.callFake(function() {
+          return new Promise(function(resolve) { _resolve = resolve; });
+        });
+
+        var p = view.update();
+
+        expect(p).toBe(view.update());
+
+        _resolve();
+
+        return p;
+      });
     });
 
     describe("#update (handling of dirty bits)", function() {
@@ -314,6 +378,7 @@ define([
       });
 
       function createView(model) {
+
         var view = new DerivedView(model);
         view._setDomNode(document.createElement("div"));
 
@@ -350,7 +415,7 @@ define([
 
       it("should call #_updateSelection when the Selection bit is set", function() {
 
-        var view = createView(model);
+        var view  = createView(model);
         var spies = createUpdateSpies(view);
 
         view._dirtyPropGroups.set(View.PropertyGroups.Selection);
@@ -363,7 +428,8 @@ define([
       });
 
       it("should call #_updateAll when both the Size and Selection bits are set", function() {
-        var view = createView(model);
+
+        var view  = createView(model);
         var spies = createUpdateSpies(view);
 
         view._dirtyPropGroups.set(View.PropertyGroups.Size | View.PropertyGroups.Selection);
@@ -372,6 +438,70 @@ define([
           expect(spies.updateSize).not.toHaveBeenCalled();
           expect(spies.updateSelection).not.toHaveBeenCalled();
           expect(spies.updateAll).toHaveBeenCalled();
+        });
+      });
+
+      it("should allow model changes of different PropGroups during an async update operation", function() {
+
+        var view = createView(model);
+
+        var _resolveSize = null;
+
+        spyOn(view, "_updateSize").and.callFake(function() {
+          return new Promise(function(resolve) { _resolveSize = resolve; });
+        });
+
+        spyOn(view, "_updateSelection");
+
+        view._dirtyPropGroups.set(View.PropertyGroups.Size);
+
+        var p = view.update();
+
+        // _updateSize is still updating
+
+        // Change the model's selection
+        model.selectionFilter = null;
+
+        // Finish _updateSize
+        _resolveSize();
+
+        return p.then(function() {
+
+          expect(view._updateSize).toHaveBeenCalledTimes(1);
+          expect(view._updateSelection).toHaveBeenCalledTimes(1);
+
+        });
+      });
+
+      it("should allow model changes of the same PropGroups during an async update operation", function() {
+
+        var view = createView(model);
+
+        var _resolveSize1 = null;
+
+        spyOn(view, "_updateSize").and.callFake(function() {
+          // First Size update
+          if(!_resolveSize1) {
+            return new Promise(function(resolve) { _resolveSize1 = resolve; });
+          }
+        });
+
+        view._dirtyPropGroups.set(View.PropertyGroups.Size);
+
+        var p = view.update();
+
+        // _updateSize is still updating
+
+        // Change the model's width
+        model.width = null;
+
+        // Finish _updateSize operation 1
+        _resolveSize1();
+
+        return p.then(function() {
+
+          expect(view._updateSize).toHaveBeenCalledTimes(2);
+
         });
       });
     });
@@ -550,7 +680,47 @@ define([
         }).toThrowError(TypeError);
       });
 
-      it("should be `false` after a full update", function(done) {
+      it("should be `true` when 'will:update' is called", function(done) {
+
+        view.on("will:update", function() {
+          expect(view.isDirty).toBe(true);
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `true` during a call to one of the _updateZyx methods", function(done) {
+
+        spyOn(view, "_updateAll").and.callFake(function() {
+
+          expect(view.isDirty).toBe(true);
+
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `false` when 'did:create' is called", function(done) {
+
+        view.on("did:update", function() {
+          expect(view.isDirty).toBe(false);
+        });
+
+        view.update().then(done, done.fail);
+      });
+
+      it("should be `true` when 'rejected:create' is called", function(done) {
+
+        spyOn(view, "_updateAll").and.returnValue(Promise.reject("Just because."));
+
+        view.on("rejected:update", function() {
+          expect(view.isDirty).toBe(true);
+        });
+
+        view.update().then(done.fail, done);
+      });
+
+      it("should be `false` after a sucessful update", function(done) {
 
         expect(view.isDirty).toBe(true);
 
@@ -562,27 +732,58 @@ define([
         }, done.fail);
       });
 
-      describe("plays along '#isAutoUpdate'", function() {
+      it("should mark the view as dirty when 'isAutoUpdate' is `false` and a change has taken place", function() {
+        view._dirtyPropGroups.clear();
 
-        beforeEach(function(done) {
-          // Ensure a first render has occurred.
-          // The view is thus clean (not dirty)
-          view.update().then(done, done.fail);
-        });
+        view.isAutoUpdate = false;
 
-        it("should mark the view as dirty when 'isAutoUpdate' is set to `false` and a change has taken place",
-        function(done) {
-          view.isAutoUpdate = false;
+        // trigger a set of changes that ought to call the render methods
+        model.selectionFilter = null;
 
-          model.on("did:change", function() {
-            expect(view.isDirty).toBe(true);
-            done();
-          });
-
-          // trigger a set of changes that ought to call the render methods
-          model.selectionFilter = null;
-        });
+        expect(view.isDirty).toBe(true);
       });
     }); // #isDirty
+
+    describe("#dispose", function() {
+
+      var SimpleView = View.extend({
+        _init: function() {
+
+          this.base();
+
+          this._setDomNode(document.createElement("div"));
+        }
+      });
+
+      it("should be possible to be called once", function() {
+        var view = new SimpleView(model);
+
+        view.dispose();
+      });
+
+      it("should be possible to be called twice", function() {
+        var view = new SimpleView(model);
+
+        view.dispose();
+
+        view.dispose();
+      });
+
+      it("should clear out the DOM node", function() {
+        var view = new SimpleView(model);
+
+        expect(view.domNode).not.toBe(null);
+        view.dispose();
+        expect(view.domNode).toBe(null);
+      });
+
+      it("should unregister the did:change event from the model", function() {
+        var view = new SimpleView(model);
+
+        view.dispose();
+
+        expect(model._hasListeners("did:change")).toBe(false);
+      });
+    }); // #dispose
   });
 });

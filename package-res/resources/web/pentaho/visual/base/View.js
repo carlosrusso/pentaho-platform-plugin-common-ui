@@ -89,12 +89,12 @@ define([
       this.model = model;
 
       /**
-       * Indicates if an update is in progress.
+       * The promise for the completion of the current update operation, if any, or `null`.
        *
-       * @type {boolean}
+       * @type {Promise}
        * @private
        */
-      this._isUpdating = false;
+      this._updatingPromise = null;
 
       /**
        * Indicates if there has been at least one successful full update.
@@ -188,7 +188,7 @@ define([
      * @type {boolean}
      */
     get isUpdating() {
-      return this._isUpdating;
+      return !!this._updatingPromise;
     },
 
     /**
@@ -214,7 +214,7 @@ define([
      * @type {boolean}
      */
     get isDirty() {
-      return this._isUpdating || !this._dirtyPropGroups.isEmpty;
+      return this.isUpdating || !this._dirtyPropGroups.isEmpty;
     },
 
     /**
@@ -238,13 +238,18 @@ define([
      */
     update: function() {
 
-      if(this.isUpdating)
-        return Promise.reject(new Error("Previous update still in progress!"));
+      var p = this._updatingPromise;
+      if(!p) {
+        var _resolve = null, _reject = null;
 
-      this._isUpdating = true;
+        this._updatingPromise = p = new Promise(function(resolve, reject) { _resolve = resolve; _reject  = reject; });
 
-      return (this._onUpdateWill() || this._updateCycle())
-          .then(this._onUpdateDid.bind(this), this._onUpdateRejected.bind(this));
+        (this._onUpdateWill() || this._updateCycle())
+          .then(this._onUpdateDid.bind(this), this._onUpdateRejected.bind(this))
+          .then(_resolve, _reject);
+      }
+
+      return p;
     },
 
     /**
@@ -279,7 +284,7 @@ define([
 
       // J.I.C.
       this._dirtyPropGroups.clear();
-      this._isUpdating = false;
+      this._updatingPromise =  null;
 
       // ---
 
@@ -292,7 +297,7 @@ define([
      */
     _onUpdateRejected: function(reason) {
 
-      this._isUpdating = false;
+      this._updatingPromise = null;
 
       // ---
 
