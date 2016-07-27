@@ -75,7 +75,6 @@ define([
         var view = new View(model);
 
         expect(model.validate()).toBeNull(); //Null === no errors
-        expect(view._isValid()).toBe(true);
       });
 
       it("should be invalid if the model is invalid", function() {
@@ -83,7 +82,6 @@ define([
         var view = new View(model);
 
         expect(model.validate()).not.toBeNull(); //Null === no errors
-        expect(view._isValid()).toBe(false);
       });
     });
 
@@ -108,7 +106,7 @@ define([
       });
 
       var ValidationErrorView = DerivedView.extend({
-        _validate: function() { return ["Some error"]; }
+        __validate: function() { return ["Some error"]; }
       });
 
       var UpdateErrorView = View.extend({
@@ -320,7 +318,7 @@ define([
         });
       });
 
-      it("should not emit a 'did:create' event if `_validate` throws", function() {
+      it("should not emit a 'did:create' event if `__validate` throws", function() {
         var listeners = createListeners();
         var view = createView(ValidationErrorView, listeners);
 
@@ -383,10 +381,10 @@ define([
         view._setDomNode(document.createElement("div"));
 
         view.isAutoUpdate = false;
-        view._dirtyPropGroups.clear(); // view is clean
+        view.__dirtyPropGroups.clear(); // view is clean
 
         // Ensure view is always valid
-        spyOn(view, "_validate").and.returnValue(null);
+        spyOn(view, "__validate").and.returnValue(null);
 
         return view;
       }
@@ -399,12 +397,23 @@ define([
         };
       }
 
+      it("should return immediately when the view is not updating and is not dirty", function() {
+
+        var view  = createView(model);
+
+        spyOn(view, "_updateAll");
+
+        return view.update().then(function() {
+          expect(view._updateAll).not.toHaveBeenCalled();
+        });
+      });
+
       it("should call #_updateSize when the Size bit is set", function() {
 
         var view  = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyPropGroups.set(View.PropertyGroups.Size);
+        view.__dirtyPropGroups.set(View.PropertyGroups.Size);
 
         return view.update().then(function() {
           expect(spies.updateSize).toHaveBeenCalled();
@@ -418,7 +427,7 @@ define([
         var view  = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyPropGroups.set(View.PropertyGroups.Selection);
+        view.__dirtyPropGroups.set(View.PropertyGroups.Selection);
 
         return view.update().then(function() {
           expect(spies.updateSize).not.toHaveBeenCalled();
@@ -432,7 +441,7 @@ define([
         var view  = createView(model);
         var spies = createUpdateSpies(view);
 
-        view._dirtyPropGroups.set(View.PropertyGroups.Size | View.PropertyGroups.Selection);
+        view.__dirtyPropGroups.set(View.PropertyGroups.Size | View.PropertyGroups.Selection);
 
         return view.update().then(function() {
           expect(spies.updateSize).not.toHaveBeenCalled();
@@ -453,7 +462,7 @@ define([
 
         spyOn(view, "_updateSelection");
 
-        view._dirtyPropGroups.set(View.PropertyGroups.Size);
+        view.__dirtyPropGroups.set(View.PropertyGroups.Size);
 
         var p = view.update();
 
@@ -486,7 +495,7 @@ define([
           }
         });
 
-        view._dirtyPropGroups.set(View.PropertyGroups.Size);
+        view.__dirtyPropGroups.set(View.PropertyGroups.Size);
 
         var p = view.update();
 
@@ -506,7 +515,7 @@ define([
       });
     });
 
-    describe("#_onModelChange", function(){
+    describe("#_onChangeDid", function(){
       var view;
 
       beforeEach(function() {
@@ -514,24 +523,24 @@ define([
         view = new View(model);
 
         view.isAutoUpdate = false;
-        view._dirtyPropGroups.clear();
+        view.__dirtyPropGroups.clear();
 
         expect(view.isDirty).toBe(false); // view is clean
       });
 
       it("should set the Size bit when only 'height' changes", function() {
         model.height = 100;
-        expect(view._dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
+        expect(view.__dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
       });
 
       it("should set the Size bit when only 'width' changes", function() {
         model.width = 100;
-        expect(view._dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
+        expect(view.__dirtyPropGroups.is(View.PropertyGroups.Size)).toBe(true);
       });
 
       it("should set the Selection bit  when 'selectionFilter' changes", function() {
         model.selectionFilter = null;
-        expect(view._dirtyPropGroups.is(View.PropertyGroups.Selection)).toBe(true);
+        expect(view.__dirtyPropGroups.is(View.PropertyGroups.Selection)).toBe(true);
       });
 
       it("should not set the view as dirty when 'selectionMode' changes", function() {
@@ -542,9 +551,9 @@ define([
       it("should set the General bit when a property other than " +
          "'height', 'width' or 'selectionFilter' changes", function() {
         model.isInteractive = false;
-        expect(view._dirtyPropGroups.is(View.PropertyGroups.General)).toBe(true);
+        expect(view.__dirtyPropGroups.is(View.PropertyGroups.General)).toBe(true);
       });
-    }); // #_onModelChange
+    }); // #_onChangeDid
 
     describe("#isAutoUpdate", function() {
 
@@ -573,10 +582,10 @@ define([
           view._setDomNode(document.createElement("div"));
 
           view.isAutoUpdate = false;
-          view._dirtyPropGroups.clear(); // view is clean
+          view.__dirtyPropGroups.clear(); // view is clean
 
           // Ensure view is always valid
-          spyOn(view, "_validate").and.returnValue(null);
+          spyOn(view, "__validate").and.returnValue(null);
 
           return view;
         }
@@ -660,10 +669,7 @@ define([
       beforeEach(function() {
 
         var DerivedView = View.extend({
-          _updateAll: function() {},
-          _validate: function() {
-            return null;
-          }
+          __validate: function() { return null; }
         });
 
         view = new DerivedView(model);
@@ -733,7 +739,7 @@ define([
       });
 
       it("should mark the view as dirty when 'isAutoUpdate' is `false` and a change has taken place", function() {
-        view._dirtyPropGroups.clear();
+        view.__dirtyPropGroups.clear();
 
         view.isAutoUpdate = false;
 
@@ -749,8 +755,7 @@ define([
       var view;
 
       var DerivedView = View.extend({
-        _updateAll: function() {},
-        _validate:  function() { return null; }
+        __validate:  function() { return null; }
       });
 
       beforeEach(function() {

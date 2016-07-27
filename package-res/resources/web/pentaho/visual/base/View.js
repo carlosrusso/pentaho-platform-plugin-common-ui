@@ -23,13 +23,14 @@ define([
   "pentaho/lang/UserError",
   "pentaho/data/filter",
   "pentaho/util/object",
+  "pentaho/util/arg",
   "pentaho/util/fun",
   "pentaho/util/BitSet",
   "pentaho/util/error",
   "pentaho/util/logger",
   "pentaho/util/promise"
 ], function(Base, EventSource, DidCreate, WillUpdate, DidUpdate, RejectedUpdate, UserError,
-            filter, O, F, BitSet, error, logger, promise) {
+            filter, O, arg, F, BitSet, error, logger, promise) {
 
   "use strict";
 
@@ -45,32 +46,32 @@ define([
    * @memberOf pentaho.visual.base
    * @class
    * @extends pentaho.lang.Base
+   *
    * @implements pentaho.lang.IDisposable
+   * @mixes pentaho.lang.EventSource
    *
    * @abstract
    * @amd pentaho/visual/base/View
    *
-   * @classDesc This is the base class for visualizations.
+   * @classDesc This is the base class for views of visualizations.
    *
    * A container is expected to instantiate a `View` with a reference to a `Model` instance,
    * which may not be immediately valid.
    *
    * Over time, the container mutates the `Model` instance and triggers events.
-   * In response, the method [_onModelChange]{@link pentaho.visual.base.View#_onModelChange} is
-   * invoked to process the events, which may cause the `View` to update itself.
+   * In response, the view detects these changes and, by default, automatically updates itself.
    *
    * @description Initializes a `View` instance.
    *
    * @constructor
-   * @param {pentaho.visual.base.Model} model - The base visualization `Model`.
+   * @param {!pentaho.visual.base.Model} model - The visualization model.
    */
 
   var View = Base.extend(/** @lends pentaho.visual.base.View# */{
 
     constructor: function(model) {
 
-      if(!model)
-        throw error.argRequired("model");
+      if(!model) throw error.argRequired("model");
 
       /**
        * The DOM node where the visualization is rendered.
@@ -78,15 +79,14 @@ define([
        * @type {?(Node|Text|HTMLElement)}
        * @private
        */
-      this._domNode = null;
+      this.__domNode = null;
 
       /**
-       * Gets the model of the visualization.
-       *
+       * The visual model.
        * @type {!pentaho.visual.base.Model}
-       * @readOnly
+       * @private
        */
-      this.model = model;
+      this.__model = model;
 
       /**
        * The promise for the completion of the current update operation, if any, or `null`.
@@ -94,7 +94,7 @@ define([
        * @type {Promise}
        * @private
        */
-      this._updatingPromise = null;
+      this.__updatingPromise = null;
 
       /**
        * Indicates if there has been at least one successful full update.
@@ -102,7 +102,7 @@ define([
        * @type {boolean}
        * @private
        */
-      this._hasUpdateFull = false;
+      this.__hasUpdateFull = false;
 
       /**
        * Indicates if the view is automatically updated whenever the model is changed.
@@ -111,33 +111,34 @@ define([
        * @private
        * @default true
        */
-      this._isAutoUpdate = true;
+      this.__isAutoUpdate = true;
 
       /**
        * The set of dirty property groups of the view.
        *
-       * @type {!pentaho.lang.BitSet}
-       * @protected
+       * @type {!pentaho.util.BitSet}
+       * @private
        * @readOnly
        */
-      this._dirtyPropGroups = new BitSet(View.PropertyGroups.All); // mark view as initially dirty
+      this.__dirtyPropGroups = new BitSet(View.PropertyGroups.All); // mark view as initially dirty
 
       /**
        * The model's "did:change" event registration handle.
        *
        * @type {!pentaho.lang.IEventRegistrationHandle}
+       * @private
        */
-      this._handleDidChange = model.on("did:change", this._processModelChange.bind(this));
+      this.__changeDidHandle = model.on("did:change", this.__onChangeDidOuter.bind(this));
 
       this._init();
     },
 
     /**
-     * Initializes the visualization.
+     * Initializes the view.
      *
-     * This method is invoked by the constructor of `pentaho.visual.base.View`.
-     * Override this method to perform initialization tasks,
-     * such as setting up event listeners.
+     * Override this method to perform initialization tasks, such as setting up event listeners.
+     *
+     * NOTE: This method is invoked by the constructor of `pentaho.visual.base.View`.
      *
      * @protected
      */
@@ -145,18 +146,43 @@ define([
     },
 
     /**
-     * Gets the view's DOM node.
+     * Gets the visualization model.
      *
-     * @type {?(Node|Text|HTMLElement)}
+     * @type {!pentaho.visual.base.Model}
+     * @readOnly
      */
-    get domNode() {
-      return this._domNode;
+    get model() {
+      return this.__model;
     },
 
     /**
-     * Sets the DOM node that the visualization will use to render itself.
+     * Gets the DOM node of the view.
      *
-     * @param {!(Node|Text|HTMLElement)} domNode - The visualization's DOM node.
+     * The view implementation creates its own DOM node,
+     * sometime between its construction and the end of the first full update,
+     * as it sees fit,
+     * and sets it by calling the [_setDomNode]{@link pentaho.visual.base.View#_setDomNode} method.
+     *
+     * Upon the first (successful) update,
+     * the [_onCreateDid]{@link pentaho.visual.base.View#_onCreateDid} method is called,
+     * which by default emits the [did:create]{@link pentaho.visual.base.events.DidCreate} event.
+     *
+     * The container application is expected to listen to this event and
+     * attach the view's DOM node to the DOM document.
+     *
+     * @type {?(Node|Text|HTMLElement)}
+     * @readOnly
+     *
+     * @see pentaho.visual.base.View#_setDomNode
+     */
+    get domNode() {
+      return this.__domNode;
+    },
+
+    /**
+     * Sets the DOM node of the view.
+     *
+     * @param {!(Node|Text|HTMLElement)} domNode - The DOM node of the view.
      *
      * @protected
      *
@@ -165,10 +191,10 @@ define([
     _setDomNode: function(domNode) {
       if(!domNode) throw error.argRequired("domNode");
 
-      if(this._domNode && domNode !== this._domNode)
-        throw error.operInvalid("Can't change the visualization dom node once it is set.");
+      if(this.__domNode && domNode !== this.__domNode)
+        throw error.operInvalid("Can't change the visualization DOM node once it is set.");
 
-      this._domNode = domNode;
+      this.__domNode = domNode;
     },
 
     /**
@@ -176,7 +202,8 @@ define([
      *
      * This getter is syntax sugar for `this.model.type.context`.
      *
-     * @type {pentaho.type.Context}
+     * @type {!pentaho.type.Context}
+     * @readOnly
      */
     get context() {
       return this.model.type.context;
@@ -186,146 +213,377 @@ define([
      * Gets a value that indicates if an update is in progress.
      *
      * @type {boolean}
+     * @readOnly
      */
     get isUpdating() {
-      return !!this._updatingPromise;
+      return !!this.__updatingPromise;
     },
 
     /**
-     * Gets or sets a value that enables or disables automatic updates of the visualization.
+     * Gets or sets a value that enables or disables automatic updates of the view.
      *
-     * Note: Setting this property to `true` does not force the visualization to update itself.
+     * When `true`, the view is automatically updated whenever a change in the model occurs.
+     * When `false`, the view view must be manually updated by calling [update]{@link pentaho.visual.}
+     *
+     * Note: Setting this property to `true` does not force the view to update.
      *
      * @type {boolean}
      */
     get isAutoUpdate() {
-      return this._isAutoUpdate;
+      return this.__isAutoUpdate;
     },
 
     set isAutoUpdate(value) {
-      this._isAutoUpdate = !!value;
+      this.__isAutoUpdate = !!value;
     },
 
     /**
      * Gets a value that indicates if the view is currently in a dirty state.
      *
+     * A view is dirty when its model has changed and the view did not yet update to reflect those changes.
+     *
      * @see pentaho.visual.base.View#isAutoUpdate
      *
      * @type {boolean}
+     * @readOnly
      */
     get isDirty() {
-      return this.isUpdating || !this._dirtyPropGroups.isEmpty;
+      return this.isUpdating || !this.__dirtyPropGroups.isEmpty;
     },
 
     /**
-     * Orchestrates the rendering of the visualization and is meant to be invoked by the container.
+     * Updates the view to match its model current state.
      *
-     * Executes [_updateAll]{@link pentaho.visual.base.View#_updateAll} asynchronously in
-     * the will/did/rejected event loop associated with an update of a visualization,
-     * and also creates the visualization DOM node the first time it successfully updates.
+     * When [isAutoUpdate]{@link pentaho.visual.base.View#isAutoUpdate} is `true`,
+     * any change to the model automatically triggers a view update, by calling this method.
      *
-     * In order to get the visualization DOM node,
-     * listen to the {@link pentaho.visual.base.events.DidCreate|"did:create"} event.
+     * The update operation is _generally_ asynchronous.
+     * Even if the view implementation completes its update synchronously,
+     * the completion is only advertised asynchronously, through
+     * the emission of one of the events
+     * [did:update]{@link pentaho.visual.base.events.DidUpdate} or
+     * [rejected:update]{@link pentaho.visual.base.events.RejectedUpdate} and
+     * the resolution of the returned promise.
      *
-     * @return {Promise} A promise that is fulfilled when the visualization
-     * is completely rendered. If the visualization is in an invalid state, the promise
-     * is immediately rejected.
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property is `true` while the
+     * update operation is considered in progress.
+     *
+     * Whenever `isUpdating` is `true`,
+     * calling [update]{@link pentaho.visual.base.View#update} again returns the same promise that was returned
+     * by the `update` call that started the ongoing update.
+     *
+     * Otherwise, calling `update` when [isDirty]{@link pentaho.visual.base.View#isDirty} is `false`,
+     * **immediately** returns a fulfilled promise.
+     *
+     * By this time, [isUpdating]{@link pentaho.visual.base.View#isUpdating} will be `true`,
+     * and the update operation proceeds to the **Will phase**.
+     *
+     * #### Will phase
+     *
+     * Initially, the [_updateWill]{@link pentaho.visual.base.View#_updateWill} method is called,
+     * which by default emits the [will:update]{@link pentaho.visual.base.events.WillUpdate} event.
+     * Either the implementation or the event listeners are allowed to cancel the update or further modify the model.
+     *
+     * If the update is _canceled_, the update is rejected with the cancel reason,
+     * and enters the **Rejected phase**.
+     *
+     * #### Loop phase
+     *
+     * If the update is not canceled, the view enters an **update loop**,
+     * that only ends when either the view is up to date with the model,
+     * in which case surely [isDirty]{@link pentaho.visual.base.View#isDirty} will be `false`,
+     * or some error occurs.
+     *
+     * On each iteration of the update loop:
+     * 1. if the view is not [dirty]{@link pentaho.visual.base.View#isDirty} anymore,
+     *    the update loop ends, with success;
+     * 2. if the model is invalid, the update loop ends, with a validation error and
+     *    the update operation proceeds to the **Rejected phase**;
+     * 3. otherwise, the "best fit" partial update method is selected and called to update the view;
+     * 4. if the selected update method throws an error or returns a rejected promise,
+     *    the update loop ends and the update operation proceeds to the **Rejected phase**;
+     * 4. repeat.
+     *
+     * Over the view's lifetime, the very first "partial" update method that is selected is actually, always, the
+     * full update method: [_updateAll]{@link pentaho.visual.base.View#_updateAll}.
+     * By the time that the first full update method ends, with success, the view must have set its DOM node,
+     * by explicitly calling [_setDomNode]{@link pentaho.visual.base.View#_setDomNode},
+     * or the update loop ends with an error, after all, and the update operation proceeds to the **Rejected phase**.
+     *
+     * Subsequent iterations may select _proper_ partial update methods, like
+     * [_updateSize]{@link pentaho.visual.base.View#_updateSize} or
+     * [_updateSelection]{@link pentaho.visual.base.View#_updateSelection}.
+     *
+     * #### Did phase
+     *
+     * If this was the first (successful) update,
+     * the [_onCreateDid]{@link pentaho.visual.base.View#_onCreateDid} method is called,
+     * which by default emits the [did:create]{@link pentaho.visual.base.events.DidCreate} event.
+     *
+     * The container application is expected to listen to this event and
+     * attach the view's DOM node to the DOM document.
+     * The implementation may then perform any one time tasks that require
+     * its DOM node to be attached to the DOM document.
+     *
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property will now be `false`.
+     *
+     * The [_onUpdateDid]{@link pentaho.visual.base.View#_onUpdateDid} method is called,
+     * which by default emits the [did:update]{@link pentaho.visual.base.events.DidUpdate} event.
+     *
+     * The implementation or the event listeners are allowed to modify the model and thus trigger **new** updates
+     * while in the _did_ phase.
+     *
+     * Lastly, the returned promise is fulfilled.
+     *
+     * #### Rejected phase
+     *
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property will now be `false`.
+     *
+     * The [_onUpdateRejected]{@link pentaho.visual.base.View#_onUpdateRejected} method is called,
+     * which by default emits the [rejected:update]{@link pentaho.visual.base.events.RejectedUpdate} event.
+     *
+     * The implementation or the event listeners are allowed to modify the model and thus trigger **new** updates
+     * while in the _rejected_ phase.
+     *
+     * Lastly, the returned promise is rejected with the original error.
+     *
+     * @return {Promise} A promise that is fulfilled when the visualization is completely updated or
+     * is rejected in case some error occurs.
      *
      * @fires "will:update"
-     * @fires "did:update"
      * @fires "rejected:update"
      * @fires "did:create"
+     * @fires "did:update"
+     *
+     * @see pentaho.visual.base.View#isAutoUpdate
+     *
+     * @see pentaho.visual.base.View#_updateAll
+     * @see pentaho.visual.base.View#_updateData
+     * @see pentaho.visual.base.View#_updateSize
+     * @see pentaho.visual.base.View#_updateSelection
+     *
+     * @see pentaho.visual.base.View#_onCreateDid
+     * @see pentaho.visual.base.View#_onUpdateWill
+     * @see pentaho.visual.base.View#_onUpdateDid
+     * @see pentaho.visual.base.View#_onUpdateRejected
      */
     update: function() {
 
-      var p = this._updatingPromise;
+      var p = this.__updatingPromise;
       if(!p) {
-        var _resolve = null, _reject = null;
+        // Nothing to do?
+        if(this.__dirtyPropGroups.isEmpty) {
+          p = Promise.resolve();
+        } else {
+          var _resolve = null, _reject = null;
 
-        this._updatingPromise = p = new Promise(function(resolve, reject) { _resolve = resolve; _reject  = reject; });
+          this.__updatingPromise = p = new Promise(function(resolve, reject) {
+            // ignore the fulfillment value of returned promises
+            _resolve = function() { resolve(); };
+            _reject  = reject;
+          });
 
-        (this._onUpdateWill() || this._updateCycle())
-          .then(this._onUpdateDid.bind(this), this._onUpdateRejected.bind(this))
-          .then(_resolve, _reject);
+          // Protect against overrides failing.
+          var cancelReason;
+          try {
+            cancelReason = this._onUpdateWill();
+          } catch(ex) { cancelReason = ex; }
+
+          (cancelReason ? Promise.reject(cancelReason) : this.__updateLoop())
+            .then(this.__onUpdateDidOuter.bind(this), this.__onUpdateRejectedOuter.bind(this))
+            .then(_resolve, _reject);
+        }
       }
 
       return p;
     },
 
     /**
+     * Called to continue the update operation upon successful completion of the update loop.
+     *
      * @private
+     *
+     * @fires "did:create"
+     * @fires "did:update"
      */
-    _onUpdateWill: function() {
-
-      if(this._hasListeners(WillUpdate.type)) {
-
-        var willUpdate = new WillUpdate(this);
-
-        if(!this._emitSafe(willUpdate))
-          return Promise.reject(willUpdate.cancelReason);
-      }
-    },
-
-    /**
-     * @private
-     */
-    _onUpdateDid: function() {
+    __onUpdateDidOuter: function() {
       // First successful update?
-      if(!this._hasUpdateFull) {
+      if(!this.__hasUpdateFull) {
+        this.__callOverridableSafe("_onCreateDid");
 
-        if(!this._domNode)
-          return this._onUpdateRejected(new UserError("View did not set a DOM node."));
-
-        this._hasUpdateFull = true;
-
-        if(this._hasListeners(DidCreate.type))
-          this._emitSafe(new DidCreate(this));
+        this.__hasUpdateFull = true;
       }
 
       // J.I.C.
-      this._dirtyPropGroups.clear();
-      this._updatingPromise =  null;
+      this.__dirtyPropGroups.clear();
+      this.__updatingPromise =  null;
 
       // ---
 
-      if(this._hasListeners(DidUpdate.type))
-        this._emitSafe(new DidUpdate(this));
+      // The update itself is over and considered done.
+      // Any override errors beyond this point are swallowed and logged,
+      // just like what is done with event listener errors.
+      this.__callOverridableSafe("_onUpdateDid");
     },
 
     /**
+     * Called to continue the update operation upon update cancellation or failure of the update loop.
+     *
+     * @param {Error} reason - The error that describes why the update failed.
+     *
+     * @return {!Promise} A promise that is rejected with the given `reason`.
+     *
      * @private
+     *
+     * @fires "rejected:update"
      */
-    _onUpdateRejected: function(reason) {
+    __onUpdateRejectedOuter: function(reason) {
 
-      this._updatingPromise = null;
+      this.__updatingPromise = null;
 
       // ---
 
-      if(this._hasListeners(RejectedUpdate.type))
-        this._emitSafe(new RejectedUpdate(this, reason));
+      // The update itself is over and considered done.
+      // Any override errors beyond this point are swallowed and logged,
+      // just like what is done with event listener errors.
+      this.__callOverridableSafe("_onUpdateRejected", reason);
 
       return Promise.reject(reason);
     },
 
     /**
-     * Updates a visualization.
+     * Called when an update operation is going to be performed.
      *
-     * If the visualization is valid, the visualization element will be created on the first update
-     * and proceed with the visualization update; otherwise, it will be rejected and prevent the update.
+     * The default implementation emits the [will:update]{@link pentaho.visual.base.events.WillUpdate} event.
      *
-     * @return {Promise} A promise that is fulfilled when the visualization
-     * is completely rendered. If the visualization is in an invalid state, the promise
-     * is immediately rejected.
+     * Either the implementation or the event listeners are allowed to cancel the update or further modify the model.
+     *
+     * The implementation can cancel the update by returning an error.
+     *
+     * If an implementation throws an error, the update is rejected with that error.
+     *
+     * @return {UserError} An error containing the cancellation reason or `null`.
+     *
+     * @protected
+     *
+     * @fires "will:update"
+     */
+    _onUpdateWill: function() {
+      if(this._hasListeners(WillUpdate.type)) {
+
+        var willUpdate = new WillUpdate(this);
+
+        if(!this._emitSafe(willUpdate))
+          return willUpdate.cancelReason;
+      }
+
+      return null;
+    },
+
+    /**
+     * Called when the _first_ successful update operation has been performed.
+     *
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property will still have value `true`.
+     *
+     * The default implementation emits the [did:create]{@link pentaho.visual.base.events.DidCreate} event.
+     * The container application is expected to listen to this event and
+     * attach the view's DOM node to the DOM document.
+     *
+     * An implementation may override this method to perform any one time tasks that require
+     * its DOM node to be attached to the DOM document.
+     * To, instead, perform such tasks in every update,
+     * use the [_onUpdateDid]{@link pentaho.visual.base.View#_onUpdateDid} method.
+     *
+     * An implementation or the `did:create` event listeners **must not** change the model during this method call.
+     *
+     * The `_onUpdateDid` method is called **after** this method returns.
+     *
+     * If an implementation throws an error, the error is logged and
+     * the update operation is still considered successful.
+     *
+     * @protected
+     *
+     * @fires "did:create"
+     */
+    _onCreateDid: function() {
+      if(this._hasListeners(DidCreate.type))
+        this._emitSafe(new DidCreate(this));
+    },
+
+    /**
+     * Called when an update operation has been performed with success.
+     *
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property will now have value `false`.
+     * The [isDirty]{@link pentaho.visual.base.View#isDirty} property will also have value `false`.
+     *
+     * The default implementation emits the [did:update]{@link pentaho.visual.base.events.DidUpdate} event.
+     *
+     * The implementation or the event listeners are allowed to modify the model and thus possibly
+     * trigger **new** updates while in the _did_ phase.
+     *
+     * If an implementation throws an error, the error is logged and
+     * the update operation is still considered successful.
+     *
+     * @protected
+     *
+     * @fires "did:update"
+     */
+    _onUpdateDid: function() {
+      if(this._hasListeners(DidUpdate.type))
+        this._emitSafe(new DidUpdate(this));
+    },
+
+    /**
+     * Called when an update operation has been canceled or has failed.
+     *
+     * The [isUpdating]{@link pentaho.visual.base.View#isUpdating} property will now have value `false`.
+     *
+     * The default implementation emits the [rejected:update]{@link pentaho.visual.base.events.RejectedUpdate} event.
+     *
+     * The implementation or the event listeners are allowed to modify the model and thus possibly
+     * trigger **new** updates while in the _rejected_ phase.
+     *
+     * If an implementation throws an error, the error is logged and
+     * the update operation is still rejected with the original error.
+     *
+     * @protected
+     *
+     * @fires "rejected:update"
+     */
+    _onUpdateRejected: function(reason) {
+      if(this._hasListeners(RejectedUpdate.type))
+        this._emitSafe(new RejectedUpdate(this, reason));
+    },
+
+    /**
+     * Performs the visualization update loop.
+     *
+     * On each iteration,
+     * if the set of dirty property groups is empty, the update loop is finished successfully.
+     *
+     * Otherwise, the model is checked for validity, and if it is not valid, the update loop is rejected.
+     * If, on the other hand, the model is valid,
+     * the "best" update method is selected and its completion is awaited for.
+     *
+     * If the selected update method is rejected, the update loop is rejected.
+     * Otherwise, if it succeeds,
+     * and it was the first update,
+     * if there is no defined DOM node, the update loop is rejected.
+     *
+     * Lastly, otherwise, another iteration of the loop is performed.
+     *
+     * @return {!Promise} A promise that is fulfilled when the visualization is completely rendered.
+     * If the visualization is in an invalid state, the promise is immediately rejected.
      *
      * @private
      */
-    _updateCycle: function() {
+    __updateLoop: function() {
 
-      var dirtyPropGroups = this._dirtyPropGroups;
+      var dirtyPropGroups = this.__dirtyPropGroups;
       if(dirtyPropGroups.isEmpty)
         return Promise.resolve();
 
-      var validationErrors = this._validate();
+      var validationErrors = this.__validate();
       if(validationErrors) {
         var error = "View model is invalid:\n - " +
           (Array.isArray(validationErrors) ? validationErrors.join("\n - ") : validationErrors);
@@ -335,13 +593,23 @@ define([
 
       // ---
 
-      var updateMethodInfo = this._getUpdateMethodInfo(dirtyPropGroups);
+      var updateMethodInfo = this.__selectUpdateMethod(dirtyPropGroups);
 
       // Assume update succeeds.
       dirtyPropGroups.clear(updateMethodInfo.mask);
 
+      var me = this;
+
       return promise.wrapCall(this[updateMethodInfo.name], this)
-          .then(this._updateCycle.bind(this), function(reason) {
+          .then(function() {
+
+            // First successful update?
+            if(!me.__hasUpdateFull && !me.__domNode)
+              return Promise.reject(new UserError("View did not set a DOM node."));
+
+            return me.__updateLoop();
+
+          }, function(reason) {
 
             // Restore
             dirtyPropGroups.set(updateMethodInfo.mask);
@@ -351,16 +619,22 @@ define([
     },
 
     /**
-     * @protected
+     * Selects the best update method for a given set of dirty property groups.
+     *
+     * @param {!pentaho.util.BitSet} dirtyPropGroups - The set of dirty property groups.
+     *
+     * @return {!Object} The information object of the selected update method.
+     *
+     * @private
      */
-    _getUpdateMethodInfo: function(dirtyPropGroups) {
+    __selectUpdateMethod: function(dirtyPropGroups) {
       var ViewClass = this.constructor;
 
       // 1. Is there an exact match?
       var methodInfo = ViewClass.UpdateMethods[dirtyPropGroups.get()];
       if(!methodInfo) {
 
-        // TODO: Sequences of methods that handles the dirty bits ...
+        // TODO: A sequence of methods that handles the dirty bits...
 
         // 2. Find the first method that cleans all (or more) of the dirty bits.
         ViewClass.UpdateMethodsList.some(function(info) {
@@ -370,86 +644,71 @@ define([
           }
         });
 
-        // At least the _updateAll method should be registered and be able to handle any dirty bits.
-        if(!methodInfo)
-          throw error.operInvalid("There is no registered update method to handle the current dirty property groups.");
+        // At least the _updateAll method is registered. It is able to handle any dirty bits.
+        // assert methodInfo
       }
 
       return methodInfo;
     },
 
     /**
-     * Validates the current state of the visualization.
+     * Validates the current state of the view.
      *
-     * By default, this method simply calls {@link pentaho.visual.base.Model#validate}
-     * to validate the model.
+     * This method calls {@link pentaho.visual.base.Model#validate} to validate the model.
+     *
+     * This method exists to support unit testing.
      *
      * @return {?Array.<!pentaho.type.ValidationError>} A non-empty array of errors or `null`.
-     * @protected
+     *
+     * @private
      */
-    _validate: function() {
+    __validate: function() {
       return this.model.validate();
     },
 
     /**
-     * Determines if the visualization is in a valid state.
+     * Handles the model's `did:change` event.
      *
-     * A visualization in an invalid state should not be rendered.
-     *
-     * @return {boolean} Returns `true` if this visualization is valid, or `false` if not valid.
-     * @protected
-     * @see pentaho.visual.base.View#_validate
-     */
-    _isValid: function() {
-      return !this._validate();
-    },
-
-    /**
      * @private
      */
-    _processModelChange: function(event) {
+    __onChangeDidOuter: function(event) {
+      var bitset = this.__dirtyPropGroups;
+      var beforeBits = bitset.get();
 
-      this._onModelChange(event.changeset);
+      this._onChangeDid(event.changeset);
 
-      if(this.isAutoUpdate) {
+      if(this.isAutoUpdate && !bitset.isEmpty && bitset.get() !== beforeBits) {
 
-        this.update().then(function() {
-          logger.info("Auto-update succeeded!");
-        }, function(errors) {
-          logger.warn("Auto-update canceled:\n - " +
-              (Array.isArray(errors) ? errors.join("\n - ") : errors));
+        this.update()["catch"](function(errors) {
+          logger.warn("Auto-update was canceled:\n - " + (Array.isArray(errors) ? errors.join("\n - ") : errors));
         });
       }
     },
 
     /**
-     * Decides how the visualization should react
-     * to a modification of its properties.
+     * Called when the model of the view has changed.
      *
-     * If the [isAutoUpdate]{@link pentaho.visual.base.View#isAutoUpdate} flag is set to `false`,
-     * this method returns immediately an no changes are processed.
+     * The default implementation marks the view as dirty.
+     * More specifically, it marks the _property groups_ of the properties affected by the given changeset as dirty.
      *
-     * By default, this method selects the cheapest reaction to a change of properties.
-     * It invokes:
-     * - [_updateSize]{@link pentaho.visual.base.View#_updateSize} when either of the properties
-     * [width]{@link pentaho.visual.base.Model.Type#width} or
-     * [height]{@link pentaho.visual.base.Model.Type#height} change,
-     * - [_updateSelection]{@link pentaho.visual.base.View#_updateSelection} when the property
-     * [selectionFilter]{@link pentaho.visual.base.Model.Type#selectionFilter} changes
-     * - [_updateAll]{@link pentaho.visual.base.View#_updateAll} when any other property changes.
+     * The recognized property groups are:
+     * * `Ignored` - the [selectionMode]{@link pentaho.visual.base.Model#selectionMode} property;
+     * * `Data` - the [data]{@link pentaho.visual.base.Model#data} property;
+     * * `Size` - the  [width]{@link pentaho.visual.base.Model#width} and
+     *    [height]{@link pentaho.visual.base.Model#height} properties;
+     * * `Selection` - the [selectionFilter]{@link pentaho.visual.base.Model#selectionFilter} property;
+     * * `General` - all other properties.
      *
-     * Subclasses of `pentaho.visual.base.View` can override this method to
-     * extend the set of fast render methods.
+     * Implementations can override this method to change the default behavior for some or
+     * all of the model's properties.
      *
-     * @see pentaho.visual.base.View#_updateSize
-     * @see pentaho.visual.base.View#_updateSelection
      * @see pentaho.visual.base.View#_updateAll
      *
-     * @param {!pentaho.type.Changeset} changeset - Map of the properties that have changed.
+     * @param {!pentaho.type.Changeset} changeset - The model's changeset.
      *
      * @protected
      */
-    _onModelChange: function(changeset) {
+    _onChangeDid: function(changeset) {
 
       var ViewClass = this.constructor;
 
@@ -459,21 +718,30 @@ define([
 
         this.set(View.PropertyGroups[dirtyGroupName]);
 
-      }, this._dirtyPropGroups);
+      }, this.__dirtyPropGroups);
     },
 
     /**
-     * Called before the visualization is discarded.
+     * Disposes any resources used by the view.
+     *
+     * The default implementation clears the view's DOM node
+     * and unregisters the view from its model events.
+     *
+     * If you have any additional properties containing DOM nodes,
+     * be sure to override this method (and call base) and
+     * set them to `null`, to avoid any memory-leaks.
      */
     dispose: function() {
-      this._domNode = null;
+      this.__domNode = null;
 
-      if(this._handleDidChange) {
-        this.model.off(this._handleDidChange);
-        this._handleDidChange = null;
+      var h = this.__changeDidHandle;
+      if(h) {
+        h.dispose();
+        this.__changeDidHandle = null;
       }
     },
 
+    // see Base.js
     extend: function(source, keyArgs) {
 
       this.base(source, keyArgs);
@@ -500,8 +768,27 @@ define([
       }
 
       return this;
+    },
+
+    /**
+     * Calls an overridable method and swallows and logs an error it throws.
+     *
+     * @param {string} methodName - The name of the overridable method to call.
+     * @param {...any} args - The arguments to pass to the method.
+     * @return {any} The value returned by the method; or `undefined`, if it throws an error.
+     *
+     * @private
+     */
+    __callOverridableSafe: function(methodName) {
+      var args = arg.slice(arguments, 1);
+      try {
+        return this[methodName].apply(this, args);
+      } catch(ex) {
+        logger.error("Exception thrown by 'View#" + methodName + "' override:" + ex + "\n" + ex.stack);
+      }
     }
   }, {
+    // see Base.js
     _subclassed: function(Subclass, instSpec, classSpec, keyArgs) {
 
       // "Inherit" PropertyGroups, PropertyGroupOfProperty, UpdateMethods and UpdateMethodsList properties
@@ -534,9 +821,7 @@ define([
       "selectionFilter": "Selection"
     }),
 
-    /*
-     bits -> {name: , mask: }
-     */
+    // bits -> {name: , mask: }
     UpdateMethods: Object.create(null),
 
     UpdateMethodsList: []
@@ -545,58 +830,119 @@ define([
   .implement(/** @lends pentaho.visual.base.View# */{
     //region _updateXyz Methods
     /**
-     * Renders or updates the visualization fully.
+     * Fully renders or updates the view.
      *
      * The first update of a visualization is always a full update.
      *
-     * Subclasses of `pentaho.visual.base.View` must override this method
-     * and implement a complete rendering of the visualization.
+     * The default implementation does nothing.
+     * Implementations **should** override this method and implement a complete rendering of the visualization.
+     *
+     * Besides implementing this method,
+     * implementations should consider implementing one or more of the optional
+     * **partial update methods**, like
+     * [_updateData]{@link pentaho.visual.base.View#_updateData},
+     * [_updateSize]{@link pentaho.visual.base.View#_updateSize},
+     * [_updateSelection]{@link pentaho.visual.base.View#_updateSelection} and
+     * [_updateGeneral]{@link pentaho.visual.base.View#_updateGeneral}.
+     *
+     * Other appropriate combinations of these can also be implemented, like,
+     * for example, `_updateSizeAndSelection`,
+     * by combining the names of the known property groups: `Data`, `Size`, `Selection` and `General`,
+     * with an `And` to form a corresponding method name.
+     * For more information on property groups, see [_onChangeDid]{@link pentaho.visual.base.View#_onChangeDid}.
+     *
+     * The [update]{@link pentaho.visual.base.View#update} operation
+     * selects the `best fit` partial methods to actually update the view.
      *
      * @protected
+     *
+     * @see pentaho.visual.base.View#_onChangeDid
+     * @see pentaho.visual.base.View#update
      */
-    _updateAll: function() {
-
-    },
+    _updateAll: function() {},
 
     /**
-     * Updates the visualization, taking into account that
-     * only the dimensions have changed.
+     * Updates the view, taking into account that
+     * only the dimensions of the view have changed.
      *
-     * Subclasses of `pentaho.visual.base.View` are expected to override this method to
-     * implement a fast and cheap resizing of the visualization.
-     * By default, this method invokes [_updateAll]{@link pentaho.visual.base.View#_updateAll}.
+     * This is an **optional** method - there is no base implementation.
+     *
+     * Implement this method to provide a faster way to resize a view.
+     * When not specified, and no other applicable partial update method exists,
+     * the full [_updateAll]{@link pentaho.visual.base.View#_updateAll} method is used to update the view.
      *
      * @name _updateSize
      * @memberOf pentaho.visual.base.View#
      * @method
      * @protected
      * @optional
+     * @see pentaho.visual.base.View#_updateAll
      */
-    //_updateSize: function() {},
 
     /**
-     * Updates the visualization, taking into account that
-     * only the selection has changed.
+     * Updates the view, taking into account that
+     * only the selection-related model properties have changed.
      *
-     * Subclasses of `pentaho.visual.base.View` are expected to override this method
-     * with an implementation that
-     * updates the selection state of the items displayed by this visualization.
-     * By default, this method invokes [_updateAll]{@link pentaho.visual.base.View#_updateAll}.
+     * This is an **optional** method - there is no base implementation.
+     *
+     * Implement this method to provide a faster way to update the selection of the view.
+     * When not specified, and no other applicable partial update method exists,
+     * the full [_updateAll]{@link pentaho.visual.base.View#_updateAll} method is used to update the view.
      *
      * @name _updateSelection
      * @memberOf pentaho.visual.base.View#
      * @method
      * @protected
      * @optional
+     * @see pentaho.visual.base.View#_updateAll
      */
-    //_updateSelection: function() {},
 
-    //_updateSizeAndSelection: function() {},
+    /**
+     * Updates the view, taking into account that
+     * only the data-related model properties have changed.
+     *
+     * This is an **optional** method - there is no base implementation.
+     *
+     * Implement this method to provide a faster way to update the data displayed by the view.
+     * When not specified, and no other applicable partial update method exists,
+     * the full [_updateAll]{@link pentaho.visual.base.View#_updateAll} method is used to update the view.
+     *
+     * @name _updateData
+     * @memberOf pentaho.visual.base.View#
+     * @method
+     * @protected
+     * @optional
+     * @see pentaho.visual.base.View#_updateAll
+     */
 
-    //_updateData: function() {},
+    /**
+     * Updates the view, taking into account that
+     * only "general" model properties have changed.
+     *
+     * This is an **optional** method - there is no base implementation.
+     *
+     * Implement this method to provide a faster way to update the "general information" displayed by the view.
+     * When not specified, and no other applicable partial update method exists,
+     * the full [_updateAll]{@link pentaho.visual.base.View#_updateAll} method is used to update the view.
+     *
+     * @name _updateGeneral
+     * @memberOf pentaho.visual.base.View#
+     * @method
+     * @protected
+     * @optional
+     * @see pentaho.visual.base.View#_updateAll
+     */
     //endregion
   });
 
+  /**
+   * Parses the custom part of the name of partial update method (like *_updateXyz*).
+   *
+   * @param {Class.<View>} ViewClass - The view class.
+   * @param {string} groupNamesText - The part of the method name following the prefix "_update".
+   *
+   * @return {number} The property group bits corresponding to the method name.
+   */
   function parsePropertyGroupsText(ViewClass, groupNamesText) {
     var groupsBits = 0;
 
