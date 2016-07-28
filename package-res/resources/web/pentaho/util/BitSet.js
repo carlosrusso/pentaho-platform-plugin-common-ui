@@ -27,18 +27,20 @@ define([
     },
 
     /**
-     * Returns a value that indicates if there are no bits set.
+     * Gets a value that indicates if there are no bits set.
      *
-     * @return {boolean} `true` if no bits are set, `false` otherwise.
+     * @type {boolean}
+     * @readOnly
      */
     get isEmpty() {
       return this._bits === 0;
     },
 
     /**
-     * Returns an integer number with the bits currently set.
+     * Gets an integer number with the bits currently set.
      *
-     * @return {number} An integer containing the bits currently set.
+     * @type {number}
+     * @readOnly
      */
     get: function() {
       return this._bits;
