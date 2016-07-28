@@ -18,8 +18,6 @@ define([
      * @class
      * @extends pentaho.lang.Base
      *
-     * @private
-     *
      * @description Creates a bit set instance.
      * @constructor
      * @param {?number} [mask] - The bits to be set, initially. Defaults to no bits.
@@ -58,7 +56,7 @@ define([
     },
 
     /**
-     * Sets the current state to a given mask.
+     * Sets on the given bits.
      *
      * @param {?number} [mask] - The bits to be set. Defaults to all bits.
      */
@@ -67,7 +65,7 @@ define([
     },
 
     /**
-     * Clears a set of bits.
+     * Clears the given bits.
      *
      * @param {?number} [mask] - The bits to be cleared. Defaults to all bits.
      */
