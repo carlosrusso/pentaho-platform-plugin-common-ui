@@ -282,7 +282,7 @@ define([
             }, this)
             .select(function(maInfo) {
               return {
-                ordinal: maInfo.attr.ordinal,
+                ordinal: maInfo.attrColIndex,
                 cccDimName: maInfo.cccDimName
               };
             })
@@ -639,9 +639,11 @@ define([
           if(cccRoleName)
             def.array.lazy(rolesByCccVisualRole, cccRoleName).push(roleName);
 
+          var dataView = this._dataView;
           visualMap[roleName] = mapping.attributes.toArray(function(mappingAttr, mappingAttrIndex) {
             var attrName = mappingAttr.name;
             var attr = attributes.get(attrName);
+            var attrColIndex = dataView.getColumnIndexByAttribute(attr);
             var axisId = axisIdByAttrName[attrName];
 
             // Create an intelligible MappingAttrInfo id.
@@ -657,6 +659,7 @@ define([
               mappingAttr: mappingAttr,
 
               attr: attr,
+              attrColIndex: attrColIndex,
 
               isPercent: !!attr.isPercent,
 
@@ -818,14 +821,10 @@ define([
         this.axes[axisId] = Axis.create(this, axisId, mappingAttrInfosByAxisId[axisId]);
       }, this);
 
-      // 2. Ensure we have a plain data table
-      // TODO: with nulls preserved, because of order...
-      this._dataView = this._dataTable.toPlainTable();
-
-      // 3. Hide columns not bound to visual roles and reorder attributes of the plain data table.
+      // 2. Hide columns not bound to visual roles and reorder attributes of the plain data table.
       this._transformData();
 
-      // 4. Determine if there are any multi-chart playing roles
+      // 3. Determine if there are any multi-chart playing roles
       // (ignoring the measure discrim, if any)
       // TODO: refactor this check by using the model directly? Would not need to account for measure discrim...
       var hasMulti = false;
@@ -872,7 +871,7 @@ define([
         this._mappingAttrInfos.forEach(function(maInfo) {
           if(maInfo.attr) {
             var sourceIndexes = maInfo.isMeasureGeneric ? measuresSourceIndexes : categoriesSourceIndexes;
-            sourceIndexes.push(maInfo.attr.ordinal);
+            sourceIndexes.push(maInfo.attr.attrColIndex);
 
             if(!maInfo.isMeasureDiscrim && !maInfo.isMeasureGeneric) {
               categoriesDimNames.push(maInfo.cccDimName);
@@ -900,7 +899,7 @@ define([
               dimNames = categoriesDimNames;
             }
 
-            sourceIndexes.push(maInfo.attr.ordinal);
+            sourceIndexes.push(maInfo.attrColIndex);
             dimNames.push(maInfo.cccDimName);
           }
         });
