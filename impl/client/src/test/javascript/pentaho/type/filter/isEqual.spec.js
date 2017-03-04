@@ -67,6 +67,22 @@ define([
       });
     }); //#property
 
+    describe("#p", function() {
+
+      it("should return the property name specified at construction", function() {
+
+        var filter = IsEqualFilter.type.create({
+          _: "=",
+          p: "foo",
+          v: "bar"
+        });
+
+        expect(filter.property).toBe("foo");
+        expect(filter.value).toBe("bar");
+      });
+    }); //#property
+
+
     describe("#value", function() {
 
       it("should return the value specified at construction", function() {

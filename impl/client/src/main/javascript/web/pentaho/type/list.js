@@ -559,6 +559,7 @@ define([
         },
 
         id: module.id,
+        alias: "list",
 
         get isList() { return true; },
         get isContainer() { return true; },

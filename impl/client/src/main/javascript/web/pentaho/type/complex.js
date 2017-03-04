@@ -40,6 +40,7 @@ define([
   return function(context) {
 
     var Element = context.get(elemFactory);
+    var O_hasOwn = Object.prototype.hasOwnProperty;
 
     /**
      * @name pentaho.type.Complex.Type
@@ -108,14 +109,30 @@ define([
         // Create `Property` instances.
         var propTypes = this.type._getProps();
         var i = propTypes.length;
-        var nameProp = !spec ? undefined : (Array.isArray(spec) ? "index" : "name");
+        var isArray = Array.isArray(spec);
         var values = {};
         var propType;
         var value;
 
         while(i--) {
           propType = propTypes[i];
-          values[propType.name] = value = propType.toValue(nameProp && spec[propType[nameProp]]);
+          var name = propType.name;
+          var valueSpec;
+          if(spec) {
+            if(isArray) {
+              valueSpec = spec[propType.index];
+            } else {
+              var alias;
+              valueSpec = O_hasOwn.call(spec, name) ? spec[name] :
+                          O_hasOwn.call(spec, (alias = propType.nameAlias)) ? spec[alias] :
+                          undefined;
+            }
+          } else {
+            valueSpec = undefined;
+          }
+
+
+          values[name] = value = propType.toValue(valueSpec);
 
           // If this instance is being newed up while there is an ambient transaction,
           // it should not cease to exist if the txn is rejected,
@@ -699,6 +716,7 @@ define([
 
         var spec;
         var includeType = !!keyArgs.includeType;
+        var noAlias = !!keyArgs.noAlias;
         var useArray = !includeType && keyArgs.preferPropertyArray;
         var omitProps;
         if(useArray) {
@@ -723,7 +741,9 @@ define([
 
           /* jshint validthis:true*/
 
-          var name = propType.name;
+          // When serializing, prefer `nameAlias` to `name` by default
+          var name = noAlias ? propType.name : propType.nameAlias;
+          if(!name) name = propType.name;
 
           if(omitProps && omitProps[name] === true) return;
 
@@ -750,6 +770,20 @@ define([
               var valueType = propType.type;
               keyArgs.includeType = value.type !== (valueType.isRefinement ? valueType.of : valueType);
 
+              // var kwArgs;
+              // if(noAlias) {
+              //   kwArgs = keyArgs;
+              // } else {
+              //   switch (valueType.alias) {
+              //     case "boolean":
+              //     case "number":
+              //     case "string":
+              //       kwArgs = Object.create(keyArgs);
+              //       kwArgs.omitFormatted = true;
+              //       kwArgs.includeType = false;
+              //       break;
+              //   }
+              // }
               valueSpec = value.toSpecInContext(keyArgs);
 
               // If a value ends up not being serializable (see ./function)
@@ -787,6 +821,7 @@ define([
 
       type: /** @lends pentaho.type.Complex.Type# */{
         id: module.id,
+        alias: "complex",
 
         isAbstract: true,
 

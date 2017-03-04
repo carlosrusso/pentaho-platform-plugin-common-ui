@@ -113,12 +113,14 @@ define([
 
       type: /** @lends pentaho.type.filter.Not.Type# */{
         id: "pentaho/type/filter/not",
+        alias: "not",
 
         styleClass: "pentaho-type-filter-not",
 
         props: [
           {
             name: "operand",
+            nameAlias: "arg",
             type: filter.Abstract,
             isRequired: true
           }

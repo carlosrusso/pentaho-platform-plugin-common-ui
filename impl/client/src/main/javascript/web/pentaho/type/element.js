@@ -64,6 +64,7 @@ define([
       type: /** @lends pentaho.type.Element.Type# */{
 
         id: module.id,
+        alias: "element",
 
         get isElement() { return true; },
 

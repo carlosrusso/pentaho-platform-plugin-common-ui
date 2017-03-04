@@ -45,6 +45,7 @@ define([
 
       type: /** @lends pentaho.type.Number.Type# */{
         id: module.id,
+        alias: "number",
         cast: toNumber
       }
     }).implement(/** @lends pentaho.type.Number# */{

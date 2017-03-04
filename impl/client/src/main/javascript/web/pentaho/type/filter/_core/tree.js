@@ -193,6 +193,7 @@ define([
         props: [
           {
             name: "operands",
+            nameAlias: "args",
             type: [filter.Abstract]
           }
         ]

@@ -249,21 +249,16 @@ define([
         expect(Derived.type.shortId).toBe(null);
       });
 
-      it("should be equal to #id when it is not a standard, single-level id", function() {
+      it("should be equal to #id when no alias is defined", function() {
         var Derived = Instance.extend({type: {id: "my/foo"}});
         expect(Derived.type.shortId).toBe(Derived.type.id);
       });
 
-      it("should be equal to the last sub-module of #id when it is of a standard, single-level id", function() {
-        var Derived = Instance.extend({type: {id: "pentaho/type/foo"}});
-        expect(Derived.type.shortId).toBe("foo");
-        expect(Derived.type.id).not.toBe("foo");
+      it("should be equal to #alias when the alias is defined", function() {
+        var Derived = Instance.extend({type: {id: "my/foo", alias: "foo"}});
+        expect(Derived.type.shortId).toBe(Derived.type.alias);
       });
 
-      it("should be equal to #id when it is of a standard, multiple-level id", function() {
-        var Derived = Instance.extend({type: {id: "pentaho/type/foo/bar"}});
-        expect(Derived.type.shortId).toBe(Derived.type.id);
-      });
     }); // #shortId
 
     describe("#defaultView -", function() {

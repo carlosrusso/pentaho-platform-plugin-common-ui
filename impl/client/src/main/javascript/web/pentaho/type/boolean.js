@@ -45,6 +45,7 @@ define([
 
       type: /** @lends pentaho.type.Boolean.Type# */{
         id: module.id,
+        alias: "boolean",
         cast: Boolean
       }
     }).implement(/** @lends pentaho.type.Boolean# */{

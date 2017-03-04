@@ -51,7 +51,8 @@ define([
      */
     var Application = Complex.extend(/** @lends pentaho.type.Application# */{
       type: /** @lends pentaho.type.Application.Type# */{
-        id: module.id
+        id: module.id,
+        alias: "application"
       }
     })
     .implement({

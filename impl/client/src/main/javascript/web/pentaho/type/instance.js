@@ -283,7 +283,7 @@ define([
       }
     });
 
-    Type._initInstCtor(Instance, {id: module.id});
+    Type._initInstCtor(Instance, {id: module.id, alias: "instance"});
 
     Type.implement(bundle.structured.instance);
 

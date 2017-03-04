@@ -66,6 +66,26 @@
  */
 
 /**
+ * The alias of the _property type_.
+ *
+ * The alias of a _property type_ is an alternative identifier for serialization purposes.
+ *
+ * ### Set
+ *
+ * This attribute must be set when defining a new _property type_,
+ * and cannot be changed afterwards.
+ *
+ * When set to a non-{@link Nully} and non-{@link String} value,
+ * the value is first replaced by the result of calling its `toString` method.
+ *
+ * @name nameAlias
+ * @memberOf pentaho.type.spec.IPropertyTypeProto#
+ * @type {!nonEmptyString | any}
+ *
+ * @see pentaho.type.Property.Type#nameAlias
+ */
+
+/**
  * The label of the property type.
  *
  * When non-{@link Nully} and not a string,

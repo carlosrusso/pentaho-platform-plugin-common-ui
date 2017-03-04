@@ -15,8 +15,9 @@
  */
 define([
   "module",
+  "../../util/object",
   "./abstract"
-], function(module, abstractFactory) {
+], function(module, O, abstractFactory) {
 
   "use strict";
 
@@ -104,6 +105,7 @@ define([
         props: [
           {
             name: "property",
+            nameAlias: "p",
             type: "string",
             isRequired: true
           }

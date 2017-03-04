@@ -85,6 +85,7 @@ define([
 
       type: /** @lends pentaho.type.Object.Type# */{
         id:   module.id,
+        alias: "object",
         cast: Object
       }
     }).implement(/** @lends pentaho.type.Object# */{

@@ -323,6 +323,7 @@ define([
 
       type: /** pentaho.type.Simple.Type# */{
         id: module.id,
+        alias: "simple",
         isAbstract: true,
 
         get isSimple() { return true; },

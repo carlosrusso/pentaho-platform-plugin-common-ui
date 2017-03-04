@@ -81,6 +81,7 @@ define([
         // and not on Property.Type itself.
 
         id: module.id,
+        alias: "property",
 
         isAbstract: true,
 
@@ -279,6 +280,47 @@ define([
           }
         },
         // endregion
+
+        // region alias attribute
+        _nameAlias: undefined,
+
+        /**
+         * Gets or sets the alias of the _property type_.
+         *
+         * The alias of a _property type_ is an alternative identifier for serialization purposes.
+         *
+         * ### Set
+         *
+         * This attribute must be set when defining a new _property type_,
+         * and cannot be changed afterwards.
+         *
+         * When set to a non-{@link Nully} and non-{@link String} value,
+         * the value is first replaced by the result of calling its `toString` method.
+         *
+         * @type {!nonEmptyString}
+         *
+         * @throws {pentaho.lang.ArgumentRequiredError} When set to an empty string or a _nully_ value.
+         * @throws {TypeError} When set to a value different from the current one.
+         *
+         * @see pentaho.type.spec.IPropertyTypeProto#nameAlias
+         */
+        get nameAlias() {
+          return this._nameAlias;
+        },
+
+        set nameAlias(value) {
+          value = nonEmptyString(value);
+
+          if(!value) throw error.argRequired("nameAlias");
+
+          // Hierarchy consistency
+          var baseValue = this._nameAlias;
+          if(baseValue && value !== baseValue)
+            throw new TypeError("Sub-properties cannot change the 'nameAlias' attribute.");
+
+          // Cannot change, or throws.
+          O.setConst(this, "_nameAlias", value);
+        }, // endregion
 
         // region list attribute
         /**

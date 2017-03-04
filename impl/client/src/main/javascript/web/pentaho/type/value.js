@@ -255,6 +255,7 @@ define([
        */
       type: /** @lends pentaho.type.Value.Type# */{
         id: module.id,
+        alias: "value",
         isAbstract: true,
 
         get isValue() { return true; },
@@ -359,7 +360,8 @@ define([
           if(!keyArgs) keyArgs = {};
 
           // The type's id or the temporary id in this scope.
-          var spec = {id: this.shortId || SpecificationContext.current.add(this)};
+          var id = keyArgs && keyArgs.noAlias ? this.id : this.shortId;
+          var spec = {id: id || SpecificationContext.current.add(this)};
 
           // The base type in the **current type hierarchy** (root, ancestor, isRoot).
           var baseType = Object.getPrototypeOf(this);

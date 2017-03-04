@@ -221,6 +221,14 @@ define([
       this._byTypeId = {};
 
       /**
+       * Map of instance constructors by [type alias]{@link pentaho.type.Type#alias},
+       * for non-anonymous types.
+       *
+       * @type {!Object.<string, Class.<pentaho.type.Instance>>}
+       */
+      this._byTypeAlias = {};
+
+      /**
        * The root [Instance]{@link pentaho.type.Instance} constructor.
        *
        * @type {!Class.<pentaho.type.Instance>}
@@ -233,6 +241,10 @@ define([
       Object.keys(standard).forEach(function(lid) {
         if(lid !== "facets" && lid !== "filter" && lid !== "instance")
           this._getByFactory(standard[lid], /* sync: */true);
+      }, this);
+
+      Object.keys(standard.filter).forEach(function(fid){
+        this._getByFactory(standard.filter[fid], /* sync: */true);
       }, this);
     },
 
@@ -848,10 +860,14 @@ define([
         return this._return(type.instance.constructor, sync);
       }
 
-      id = toAbsTypeId(id);
+      var InstCtor = O.getOwn(this._byTypeAlias, id);
+      if (!InstCtor) {
+        id = toAbsTypeId(id);
 
-      // Check if id is already present.
-      var InstCtor = O.getOwn(this._byTypeId, id);
+        // Check if id is already present.
+        InstCtor = O.getOwn(this._byTypeId, id);
+      }
+
       if(InstCtor) return this._return(InstCtor, sync);
 
       /* jshint laxbreak:true*/
@@ -953,6 +969,8 @@ define([
           if(config) type.constructor.implement(config);
 
           this._byTypeId[id] = InstCtor;
+          var alias = type.alias;
+          if(alias && !O.getOwn(this._byTypeAlias, alias)) this._byTypeAlias[alias] = InstCtor;
         }
 
         this._byTypeUid[type.uid] = InstCtor;
@@ -1041,9 +1059,12 @@ define([
             if(type) InstCtor = type.instance.constructor;
           }
         } else {
-          // id ~ "value" goes here.
-          id = toAbsTypeId(id);
-          InstCtor = O.getOwn(this._byTypeId, id);
+          InstCtor = O.getOwn(this._byTypeAlias, id);
+          if(!InstCtor) {
+            // id ~ "value" goes here.
+            id = toAbsTypeId(id);
+            InstCtor = O.getOwn(this._byTypeId, id);
+          }
         }
 
         // If so, keep initial specification. Ignore the new one.

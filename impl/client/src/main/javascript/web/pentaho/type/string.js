@@ -45,6 +45,7 @@ define([
 
       type: {
         id: module.id,
+        alias: "string",
         cast: String
       }
     }).implement({

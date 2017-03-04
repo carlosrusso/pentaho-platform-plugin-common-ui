@@ -37,7 +37,6 @@ define([
 
   // Unique type class id exposed through Type#uid and used by Context instances.
   var _nextUid = 1;
-  var _extractShortId = /^pentaho\/type\/(\w+)$/i;
   var _normalAttrNames = [
         "description", "category", "helpUrl", "isBrowsable", "isAdvanced", "ordinal"
       ];
@@ -107,9 +106,9 @@ define([
 
         // Don't use inherited property definition which may be writable false
         Object.defineProperty(this, "_id",       {value: null, writable: true});
+        Object.defineProperty(this, "_alias",    {value: null, writable: true});
         Object.defineProperty(this, "_sourceId", {value: null, writable: true});
 
-        this._shortId    = undefined;
         this._styleClass = null;
         this._isAbstract = false;
 
@@ -133,8 +132,11 @@ define([
        */
       _postInit: function(spec, keyArgs) {
         var id = this._id;
+        var alias = this._alias;
+
         // Lock these properties
         O.setConst(this, "_id", id);
+        O.setConst(this, "_alias", alias);
         O.setConst(this, "_sourceId", this._sourceId);
 
         // Default styleClass
@@ -464,7 +466,9 @@ define([
       /**
        * Gets the short identifier of this type.
        *
-       * When a type is one of the standard types,
+       * The short identifier of a type is equal to its alias, provided it is defined.
+       *
+       * In particular, when a type is one of the standard types,
        * and thus a direct sub-module of the `pentaho/type` module,
        * its short identifier is its _local module id_,
        * like `"string"` or `"boolean"`.
@@ -474,21 +478,10 @@ define([
        * @type {?nonEmptyString}
        * @readOnly
        * @see pentaho.type.Type#id
+       * @see pentaho.type.Type#alias
        */
       get shortId() {
-        var shortId = this._shortId;
-        var id;
-        var m;
-        if(shortId === undefined) {
-          if((id = this._id) && (m = _extractShortId.exec(id))) {
-            shortId = m[1];
-          } else {
-            shortId = id;
-          }
-          this._shortId = shortId;
-        }
-
-        return shortId;
+        return this._alias || this._id;
       },
 
       /**
@@ -533,6 +526,39 @@ define([
 
         return id;
       },
+
+      // -> nonEmptyString, Optional(null), Immutable, Shared (note: not Inherited)
+      // "" -> null conversion
+
+      _alias: null,
+
+      /**
+       * Gets the alias for the identifier of this type.
+       *
+       * The alias of a type can only be specified when extending the ancestor type.
+       *
+       * This attribute is not inherited.
+       *
+       * When unspecified, defaults to `null`.
+       *
+       * @type {?nonEmptyString}
+       * @readonly
+       *
+       * @see pentaho.type.Type#id
+       */
+      get alias() {
+        return this._alias;
+      },
+
+      set alias(value) {
+
+        value = nonEmptyString(value);
+        if(value != null) {
+          // Throws if already const.
+          this._alias = value;
+        }
+      },
+
       // endregion
 
       // region isAbstract property
@@ -1180,17 +1206,31 @@ define([
             Instance.type._throwAbstractType();
 
         } else {
-          if(this.isAbstract) this._throwAbstractType();
+          if(this.isAbstract) {
+            switch(typeof instSpec) {
+              case "number":
+                Instance = context.get("number");
+                break;
+              case "boolean":
+                Instance = context.get("boolean");
+                break;
+              case "string":
+                Instance = context.get("string");
+                break;
+              default:
+                this._throwAbstractType();
+            }
+          } else {
+            // Does this type have an own constructor?
+            var baseInst = this.instance;
 
-          // Does this type have an own constructor?
-          var baseInst = this.instance;
+            Instance = baseInst.constructor;
 
-          Instance = baseInst.constructor;
-
-          if(Instance.prototype !== baseInst) {
-            // Type was created through extendProto.
-            var inst = Object.create(baseInst);
-            return Instance.apply(inst, arguments) || inst;
+            if(Instance.prototype !== baseInst) {
+              // Type was created through extendProto.
+              var inst = Object.create(baseInst);
+              return Instance.apply(inst, arguments) || inst;
+            }
           }
         }
 
@@ -1378,8 +1418,9 @@ define([
        * @see pentaho.type.Type#toSpec
        */
       toSpecInContext: function(keyArgs) {
+        var id = keyArgs && keyArgs.noAlias ? this.id : this.shortId;
 
-        var spec = {id: this.shortId || SpecificationContext.current.add(this)};
+        var spec = {id: id || SpecificationContext.current.add(this)};
 
         this._fillSpecInContext(spec, keyArgs || {});
 
@@ -1504,7 +1545,8 @@ define([
        * @return {!pentaho.type.spec.UTypeReference} A reference to this type.
        */
       toRef: function(keyArgs) {
-        return this.shortId || O.using(new SpecificationScope(), this.toRefInContext.bind(this, keyArgs || {}));
+        var id = keyArgs && keyArgs.noAlias ? this.id : this.shortId;
+        return id || O.using(new SpecificationScope(), this.toRefInContext.bind(this, keyArgs || {}));
       },
 
       /**
@@ -1523,7 +1565,8 @@ define([
        * @return {!pentaho.type.spec.UTypeReference} A reference to this type.
        */
       toRefInContext: function(keyArgs) {
-        return this.shortId || SpecificationContext.current.getIdOf(this) || this.toSpecInContext(keyArgs);
+        var id = keyArgs && keyArgs.noAlias ? this.id : this.shortId;
+        return id || SpecificationContext.current.getIdOf(this) || this.toSpecInContext(keyArgs);
       },
       // endregion
 

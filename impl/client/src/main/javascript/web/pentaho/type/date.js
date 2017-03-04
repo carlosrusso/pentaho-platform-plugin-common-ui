@@ -56,6 +56,7 @@ define([
 
       type: /** @lends pentaho.type.Date.Type# */{
         id: module.id,
+        alias: "date",
 
         cast: function(v) {
           return date.parseDateEcma262v7(v);

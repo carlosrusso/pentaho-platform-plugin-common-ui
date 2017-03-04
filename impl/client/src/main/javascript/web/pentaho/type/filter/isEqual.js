@@ -77,6 +77,7 @@ define([
 
       type: /** @lends pentaho.type.filter.IsEqual.Type# */{
         id: module.id,
+        alias: "=",
 
         styleClass: "pentaho-type-filter-isEqual",
 
@@ -84,6 +85,7 @@ define([
           {
             // may be `null`
             name: "value",
+            nameAlias: "v",
             type: "value"
           }
         ]

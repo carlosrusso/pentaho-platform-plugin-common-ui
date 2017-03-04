@@ -104,6 +104,7 @@ define([
 
       type: /** @lends pentaho.type.Function.Type# */{
         id: module.id,
+        alias: "function",
         cast: F.as
       }
     }).implement(/** @lends pentaho.type.Function# */{
