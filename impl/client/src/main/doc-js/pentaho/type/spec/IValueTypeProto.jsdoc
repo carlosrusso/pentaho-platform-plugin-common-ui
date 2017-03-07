@@ -54,6 +54,23 @@
  */
 
 /**
+ * The alias for the identifier of this type.
+ *
+ * The alias of a type can only be specified when extending the ancestor type.
+ *
+ * This attribute is not inherited.
+ *
+ * When unspecified, defaults to `null`.
+ *
+ * @name alias
+ * @memberOf pentaho.type.spec.IValueTypeProto#
+ * @type {?nonEmptyString}
+ * @readonly
+ *
+ * @see pentaho.type.spec.IValueTypeProto#id
+*/
+
+/**
  * The identifier of the value type's _source_ AMD module, or `null`.
  *
  * An empty string or `undefined` value is interpreted as `null`.

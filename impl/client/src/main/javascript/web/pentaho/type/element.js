@@ -65,6 +65,7 @@ define([
 
         id: module.id,
         alias: "element",
+        isAbstract: true,
 
         get isElement() { return true; },
 
