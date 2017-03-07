@@ -44,6 +44,9 @@ define([
 
   return function(context) {
     var _type = null;
+    var _Number = null;
+    var _Boolean = null;
+    var _String = null;
 
     /**
      * @name pentaho.type.Type
@@ -1205,32 +1208,29 @@ define([
           if(this._assertSubtype(Instance.type).isAbstract)
             Instance.type._throwAbstractType();
 
+        } else if(this.isAbstract) {
+          /* eslint default-case: 0 */
+          switch(typeof instSpec) {
+            case "string": Instance = _String || (_String = context.get("string")); break;
+            case "number": Instance = _Number || (_Number = context.get("number")); break;
+            case "boolean": Instance = _Boolean || (_Boolean = context.get("boolean")); break;
+          }
+
+          // Must still respect the base type: `this`.
+          if(Instance && !Instance.type.isSubtypeOf(this)) Instance = null;
+
+          if(!Instance) this._throwAbstractType();
+
         } else {
-          if(this.isAbstract) {
-            switch(typeof instSpec) {
-              case "number":
-                Instance = context.get("number");
-                break;
-              case "boolean":
-                Instance = context.get("boolean");
-                break;
-              case "string":
-                Instance = context.get("string");
-                break;
-              default:
-                this._throwAbstractType();
-            }
-          } else {
-            // Does this type have an own constructor?
-            var baseInst = this.instance;
+          // Does this type have an own constructor?
+          var baseInst = this.instance;
 
-            Instance = baseInst.constructor;
+          Instance = baseInst.constructor;
 
-            if(Instance.prototype !== baseInst) {
-              // Type was created through extendProto.
-              var inst = Object.create(baseInst);
-              return Instance.apply(inst, arguments) || inst;
-            }
+          if(Instance.prototype !== baseInst) {
+            // Type was created through extendProto.
+            var inst = Object.create(baseInst);
+            return Instance.apply(inst, arguments) || inst;
           }
         }
 
