@@ -1047,7 +1047,7 @@ define([
   function readSpecByNameOrAlias(spec, propType) {
     var name;
     return O_hasOwn.call(spec, (name = propType.name)) ? spec[name] :
-           O_hasOwn.call(spec, (name = propType.nameAlias)) ? spec[name] :
+           ((name = propType.nameAlias) && O_hasOwn.call(spec, name)) ? spec[name] :
            undefined;
   }
 });
