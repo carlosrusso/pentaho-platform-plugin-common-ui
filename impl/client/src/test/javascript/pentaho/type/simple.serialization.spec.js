@@ -23,11 +23,14 @@ define([
 
   var context = new Context();
   var PentahoObject = context.get("pentaho/type/object");
+  var PentahoString = context.get("pentaho/type/string");
+  var PentahoNumber = context.get("pentaho/type/number");
+  var PentahoBoolean = context.get("pentaho/type/boolean");
 
   describe("pentaho.type.Simple", function() {
 
     // Using pentaho/type/boolean because pentaho/type/simple is abstract
-    var PentahoBoolean = context.get("pentaho/type/boolean");
+
     var originalSpec = {v: false, f: "I'm a simple value"};
 
     describe("values", function() {
@@ -168,8 +171,8 @@ define([
       it("should return cell format when _toJSONValue returns a plain object and keyArgs.isJson: true", function() {
         var scope = new SpecificationScope();
 
-        var value = new PentahoBoolean(true);
         var valueResult = {};
+        var value = new PentahoObject({v: valueResult});
 
         spyOn(value, "_toJSONValue").and.returnValue(valueResult);
 
@@ -184,7 +187,8 @@ define([
       it("should return null when _toJSONValue returns null and keyArgs.isJson: true", function() {
         var scope = new SpecificationScope();
 
-        var value = new PentahoBoolean(true);
+        var valueResult = {};
+        var value = new PentahoObject({v: valueResult});
 
         spyOn(value, "_toJSONValue").and.returnValue(null);
 
@@ -224,6 +228,7 @@ define([
   function testSimple(SimpleClass, primitiveValue) {
 
     var isPlainObject = (SimpleClass === PentahoObject) && (!!primitiveValue&& primitiveValue.constructor === Object);
+    var isNumOrBoolOrStr = (SimpleClass === PentahoNumber) || (SimpleClass === PentahoBoolean) || (SimpleClass === PentahoString);
 
     describe("when declaredType is unspecified", function() {
 
@@ -341,7 +346,7 @@ define([
       });
     });
 
-    describe("when declaredType is the simple type's ancestor", function() {
+    describe("when declaredType is the simple type's ancestor (abstract)", function() {
 
       describe("when forceType: true", function() {
 
@@ -363,20 +368,33 @@ define([
 
       describe("when forceType: false and omitFormatted: true", function() {
 
-        it("should output a cell with the '_' inline type reference", function() {
-          var value = new SimpleClass({v: primitiveValue});
-          var spec = value.toSpec({forceType: false, omitFormatted: true, declaredType: SimpleClass.type.ancestor});
+        if(isNumOrBoolOrStr) {
 
-          expect(typeof spec).toBe("object");
-          expect(spec._).toEqual(SimpleClass.type.toRefInContext());
-        });
+          it("should return the primitive value", function() {
 
-        it("should output the primitive value in the 'v' property", function() {
-          var value = new SimpleClass({v: primitiveValue});
-          var spec = value.toSpec({forceType: false, omitFormatted: true, declaredType: SimpleClass.type.ancestor});
+            var value = new SimpleClass({v: primitiveValue});
+            var spec = value.toSpec({forceType: false, omitFormatted: true, declaredType: SimpleClass.type.ancestor});
 
-          expect(spec.v).toBe(primitiveValue);
-        });
+            expect(spec).toBe(primitiveValue);
+          });
+
+        } else {
+
+          it("should output a cell with the '_' inline type reference", function() {
+            var value = new SimpleClass({v: primitiveValue});
+            var spec = value.toSpec({forceType: false, omitFormatted: true, declaredType: SimpleClass.type.ancestor});
+
+            expect(typeof spec).toBe("object");
+            expect(spec._).toEqual(SimpleClass.type.toRefInContext());
+          });
+
+          it("should output the primitive value in the 'v' property", function() {
+            var value = new SimpleClass({v: primitiveValue});
+            var spec = value.toSpec({forceType: false, omitFormatted: true, declaredType: SimpleClass.type.ancestor});
+
+            expect(spec.v).toBe(primitiveValue);
+          });
+        }
       });
     });
   }
