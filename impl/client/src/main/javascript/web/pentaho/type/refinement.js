@@ -289,6 +289,7 @@ define([
         },
 
         id: module.id,
+        alias: "refinement",
 
         // region facets property
         _facets: [],

@@ -592,7 +592,7 @@ define([
               expect(complex.y.at(0).value).toBe(1);
               expect(complex.y.at(1).value).toBe(2);
             });
-          }); //end with listeners
+          }); // end with listeners
         });
       }); // end set
 

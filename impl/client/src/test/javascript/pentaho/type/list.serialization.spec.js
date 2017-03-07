@@ -141,7 +141,6 @@ define([
         var Refined = PentahoNumber.refine();
         var RefinedList = context.get([Refined.type]);
 
-
         var list = new RefinedList([1, 2, 3]);
         var spec = list.toSpec();
 

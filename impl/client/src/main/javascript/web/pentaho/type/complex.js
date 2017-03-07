@@ -774,7 +774,7 @@ define([
             var valueSpec;
             if(value) {
               keyArgs.declaredType = propType.type;
-              
+
               valueSpec = value.toSpecInContext(keyArgs);
 
               // If a value ends up not being serializable (see ./function)

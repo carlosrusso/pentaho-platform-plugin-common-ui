@@ -49,16 +49,7 @@ define([
   // Default `base` type in a type specification.
   var _defaultBaseTypeMid = "complex";
 
-  // Standard types which can be assumed to already be loaded.
-  var _standardTypeMids = {};
-
-  Object.keys(standard).forEach(function(name) {
-    if(name !== "facets" && name !== "filter") _standardTypeMids[_baseMid + name] = 1;
-  });
-
-  Object.keys(standard.facets).forEach(function(name) {
-    _standardTypeMids[_baseFacetsMid + name] = 1;
-  });
+  var O_hasOwn = Object.prototype.hasOwnProperty;
 
   var Context = Base.extend(module.id, /** @lends pentaho.type.Context# */{
 
@@ -213,20 +204,13 @@ define([
 
       // non-anonymous types
       /**
-       * Map of instance constructors by [type id]{@link pentaho.type.Type#id},
+       * Map of instance constructors by [type id]{@link pentaho.type.Type#id}
+       * and by [type alias]{@link pentaho.type.Type#alias}
        * for non-anonymous types.
        *
        * @type {!Object.<string, Class.<pentaho.type.Instance>>}
        */
       this._byTypeId = {};
-
-      /**
-       * Map of instance constructors by [type alias]{@link pentaho.type.Type#alias},
-       * for non-anonymous types.
-       *
-       * @type {!Object.<string, Class.<pentaho.type.Instance>>}
-       */
-      this._byTypeAlias = {};
 
       /**
        * The root [Instance]{@link pentaho.type.Instance} constructor.
@@ -531,7 +515,7 @@ define([
       var output = [];
       for(var uid in byTypeUid) {
         /* istanbul ignore else: almost impossible to test; browser dependent */
-        if(O.hasOwn(byTypeUid, uid)) {
+        if(O_hasOwn.call(byTypeUid, uid)) {
           var InstCtor = byTypeUid[uid];
           var type = InstCtor.type;
           if(type.isSubtypeOf(baseType) && (!predicate || predicate(type))) {
@@ -622,7 +606,7 @@ define([
      */
     _collectTypeSpecTypeIds: function(typeSpec, customTypeIds) {
       if(!customTypeIds) customTypeIds = {};
-      collectTypeIdsRecursive(typeSpec, customTypeIds);
+      collectTypeIdsRecursive(typeSpec, customTypeIds, this._byTypeId);
       return customTypeIds;
     },
     // endregion
@@ -860,13 +844,8 @@ define([
         return this._return(type.instance.constructor, sync);
       }
 
-      var InstCtor = O.getOwn(this._byTypeAlias, id);
-      if (!InstCtor) {
-        id = toAbsTypeId(id);
-
-        // Check if id is already present.
-        InstCtor = O.getOwn(this._byTypeId, id);
-      }
+      // Check if id is already present.
+      var InstCtor = O.getOwn(this._byTypeId, id);
 
       if(InstCtor) return this._return(InstCtor, sync);
 
@@ -970,7 +949,7 @@ define([
 
           this._byTypeId[id] = InstCtor;
           var alias = type.alias;
-          if(alias && !O.getOwn(this._byTypeAlias, alias)) this._byTypeAlias[alias] = InstCtor;
+          if(alias && !O.getOwn(this._byTypeId, alias)) this._byTypeId[alias] = InstCtor;
         }
 
         this._byTypeUid[type.uid] = InstCtor;
@@ -1059,12 +1038,8 @@ define([
             if(type) InstCtor = type.instance.constructor;
           }
         } else {
-          InstCtor = O.getOwn(this._byTypeAlias, id);
-          if(!InstCtor) {
-            // id ~ "value" goes here.
-            id = toAbsTypeId(id);
-            InstCtor = O.getOwn(this._byTypeId, id);
-          }
+          // id ~ "value" goes here.
+          InstCtor = O.getOwn(this._byTypeId, id);
         }
 
         // If so, keep initial specification. Ignore the new one.
@@ -1180,13 +1155,7 @@ define([
     return factory._fuid_ || (factory._fuid_ = _nextFactoryUid++);
   }
 
-  // It's considered an AMD id only if it has at least one "/".
-  // Otherwise, append pentaho's base amd id.
-  function toAbsTypeId(id) {
-    return id.indexOf("/") < 0 ? (_baseMid + id) : id;
-  }
-
-  function collectTypeIdsRecursive(typeSpec, outIds) {
+  function collectTypeIdsRecursive(typeSpec, outIds, byTypeId) {
     if(!typeSpec) return;
 
     /* eslint default-case: 0 */
@@ -1194,10 +1163,8 @@ define([
       case "string":
         if(SpecificationContext.isIdTemporary(typeSpec)) return;
 
-        typeSpec = toAbsTypeId(typeSpec);
-
         // A standard type that is surely loaded?
-        if(_standardTypeMids[typeSpec] === 1) return;
+        if(O_hasOwn.call(byTypeId, typeSpec)) return;
 
         outIds[typeSpec] = typeSpec;
         return;
@@ -1207,7 +1174,7 @@ define([
           // Shorthand list type notation
           // Example: [{props: { ...}}]
           if(typeSpec.length)
-            collectTypeIdsRecursive(typeSpec[0], outIds);
+            collectTypeIdsRecursive(typeSpec[0], outIds, byTypeId);
           return;
         }
 
@@ -1216,22 +1183,22 @@ define([
         //   Something like a two phase protocol?
 
         // {[base: "complex", ] [of: "..."] , [props: []]}
-        collectTypeIdsRecursive(typeSpec.base, outIds);
+        collectTypeIdsRecursive(typeSpec.base, outIds, byTypeId);
 
-        collectTypeIdsRecursive(typeSpec.of, outIds);
+        collectTypeIdsRecursive(typeSpec.of, outIds, byTypeId);
 
         var props = typeSpec.props;
         if(props) {
           if(Array.isArray(props))
             props.forEach(function(propSpec) {
-              collectTypeIdsRecursive(propSpec && propSpec.type, outIds);
-              collectTypeIdsRecursive(propSpec && propSpec.base, outIds);
+              collectTypeIdsRecursive(propSpec && propSpec.type, outIds, byTypeId);
+              collectTypeIdsRecursive(propSpec && propSpec.base, outIds, byTypeId);
             });
           else
             Object.keys(props).forEach(function(propName) {
               var propSpec = props[propName];
-              collectTypeIdsRecursive(propSpec && propSpec.type, outIds);
-              collectTypeIdsRecursive(propSpec && propSpec.base, outIds);
+              collectTypeIdsRecursive(propSpec && propSpec.type, outIds, byTypeId);
+              collectTypeIdsRecursive(propSpec && propSpec.base, outIds, byTypeId);
             });
         }
 
@@ -1245,7 +1212,7 @@ define([
               if(facetIdOrClass.indexOf("/") < 0)
                 facetIdOrClass = _baseFacetsMid + facetIdOrClass;
 
-              collectTypeIdsRecursive(facetIdOrClass, outIds);
+              collectTypeIdsRecursive(facetIdOrClass, outIds, byTypeId);
             }
           });
         }

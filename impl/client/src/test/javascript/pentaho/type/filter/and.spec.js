@@ -222,7 +222,6 @@ define([
         var oper3  = new CustomFilter();
         var filter2 = new AndFilter({operands: [oper3]});
 
-
         var result = filter1.and(filter2);
 
         expect(result.operands.count).toBe(3);
@@ -232,5 +231,73 @@ define([
       });
     }); // #and
 
+
+    describe("#toSpec", function() {
+      var filter;
+
+      beforeEach(function() {
+        var oper1 = new CustomFilter();
+        var oper2 = new CustomFilter();
+
+        filter = new AndFilter({operands: [oper1, oper2]});
+      });
+
+      describe("when invoked without keyword arguments", function() {
+        var filterSpec;
+
+        beforeEach(function() {
+          filterSpec = filter.toSpec();
+        });
+
+        it("should omit the type", function() {
+          expect(filterSpec._).toBeUndefined();
+        });
+
+        it("should specify the operands by their #nameAlias 'args' instead of their #name 'operands", function() {
+
+          expect(filterSpec.args.length).toBe(2);
+          expect(filterSpec.operands).toBeUndefined();
+        });
+      });
+
+      describe("when invoked with the keyword argument `noAlias` set to `true`", function() {
+        it("should specify the operands by their #name 'operands", function() {
+
+          var filterSpec = filter.toSpec({
+            noAlias: true
+          });
+
+          expect(filterSpec._).toBeUndefined();
+          expect(filterSpec.args).toBeUndefined();
+          expect(filterSpec.operands.length).toBe(2);
+
+        });
+      });
+
+      describe("when invoked with the keyword argument `forceType` set to `true`", function() {
+        it("should specify the type by the #alias", function() {
+
+          var filterSpec = filter.toSpec({
+            forceType: true
+          });
+
+          expect(filterSpec._).toBe("and");
+        });
+
+        it("should specify the type by the #id when the `noAlias` option is additionally specified", function() {
+
+          var filterSpec = filter.toSpec({
+            forceType: true,
+            noAlias: true
+          });
+
+          expect(filterSpec._).toBe("pentaho/type/filter/and");
+        });
+      });
+
+    }); // #toSpec
+
+
   }); // pentaho.type.filter.And
+
 });

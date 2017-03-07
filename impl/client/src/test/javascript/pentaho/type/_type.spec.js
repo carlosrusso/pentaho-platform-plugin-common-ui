@@ -1161,49 +1161,49 @@ define([
     }); // #hasDescendants
 
     describe("#isList", function() {
-      it("should have default `isList` equal to `false`", function () {
+      it("should have default `isList` equal to `false`", function() {
         expect(Instance.type.isList).toBe(false);
       });
     });
 
     describe("#isRefinement", function() {
-      it("should have default `isRefinement` equal to `false`", function () {
+      it("should have default `isRefinement` equal to `false`", function() {
         expect(Instance.type.isRefinement).toBe(false);
       });
     });
 
     describe("#isValue", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isValue).toBe(false);
       });
     });
 
     describe("#isProperty", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isProperty).toBe(false);
       });
     });
 
     describe("#isElement", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isElement).toBe(false);
       });
     });
 
     describe("#isComplex", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isComplex).toBe(false);
       });
     });
 
     describe("#isSimple", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isSimple).toBe(false);
       });
     });
 
     describe("#isContainer", function() {
-      it("should have default `false`", function () {
+      it("should have default `false`", function() {
         expect(Instance.type.isContainer).toBe(false);
       });
     });

@@ -263,7 +263,7 @@ define([
       });
 
       it("should return the #alias of the type when it has an id and an alias", function() {
-        var derivedType = Instance.extend({type: {id: "pentaho/type/test", alias:"test"}}).type;
+        var derivedType = Instance.extend({type: {id: "pentaho/type/test", alias: "test"}}).type;
 
         var typeRef = derivedType.toRef();
 

@@ -48,7 +48,7 @@ define([
       });
 
       it("should accept '1' as true", function() {
-        expect(new PentahoBoolean('1').value).toBe(true);
+        expect(new PentahoBoolean("1").value).toBe(true);
       });
 
       it("should accept 0 as false", function() {
@@ -56,7 +56,7 @@ define([
       });
 
       it("should accept '0' as true", function() {
-        expect(new PentahoBoolean('0').value).toBe(true);
+        expect(new PentahoBoolean("0").value).toBe(true);
       });
 
       it("should accept true as true", function() {
@@ -68,7 +68,7 @@ define([
       });
 
       it("should accept 'false' as true", function() {
-        expect(new PentahoBoolean('false').value).toBe(true);
+        expect(new PentahoBoolean("false").value).toBe(true);
       });
 
       it("should accept new Date() as true", function() {
@@ -76,11 +76,11 @@ define([
       });
 
       it("should accept empty string as false", function() {
-        expect(new PentahoBoolean('').value).toBe(false);
+        expect(new PentahoBoolean("").value).toBe(false);
       });
 
       it("should accept some random string as true", function() {
-        expect(new PentahoBoolean('someRandom string').value).toBe(true);
+        expect(new PentahoBoolean("someRandom string").value).toBe(true);
       });
 
       it("should not accept null", function() {

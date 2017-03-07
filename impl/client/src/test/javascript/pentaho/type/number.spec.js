@@ -54,7 +54,7 @@ define([
 
       it("should throw and not accept a 'non-numeric' argument", function() {
         expect(function() {
-          var foo = new PentahoNumber('one');
+          var foo = new PentahoNumber("one");
         }).toThrow(errorMatch.argInvalid("value"));
       });
 
