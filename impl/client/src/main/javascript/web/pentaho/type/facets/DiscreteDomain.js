@@ -259,7 +259,7 @@ define([
       var domain = O.getOwn(this, "_domain");
       if(domain) {
         any = true;
-        keyArgs.includeType = false;
+        keyArgs.declaredType = this.type;
         spec.domain = domain.toSpecInContext(keyArgs);
       }
 

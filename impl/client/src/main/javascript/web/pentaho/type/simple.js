@@ -272,7 +272,13 @@ define([
         if(!keyArgs) keyArgs = {};
 
         var addFormatted = !keyArgs.omitFormatted && !!this._formatted;
-        var includeType = keyArgs.includeType;
+
+        var type = this.type;
+        var declaredType;
+        var includeType = !!keyArgs.forceType ||
+              (!!(declaredType = keyArgs.declaredType) &&
+               type !== (declaredType.isRefinement ? declaredType.of : declaredType));
+
         var value;
         if(keyArgs.isJson) {
           value = this._toJSONValue(keyArgs);
@@ -294,7 +300,7 @@ define([
         // Need one. Ensure _ is the first property
         /* jshint laxbreak:true*/
         var spec = includeType
-            ? {_: this.type.toRefInContext(keyArgs), v: value}
+            ? {_: type.toRefInContext(keyArgs), v: value}
             : {v: value};
 
         if(addFormatted) spec.f = this._formatted;

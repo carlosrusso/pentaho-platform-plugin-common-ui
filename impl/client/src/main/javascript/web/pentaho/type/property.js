@@ -733,9 +733,7 @@ define([
             if(defaultValue !== undefined) {
               any = true;
               if(defaultValue) {
-                var valueType = this.type;
-                keyArgs.includeType = defaultValue.type !== (valueType.isRefinement ? valueType.of : valueType);
-
+                keyArgs.declaredType = this.type;
                 spec.value = defaultValue.toSpecInContext(keyArgs);
               } else {
                 spec.value = null;
