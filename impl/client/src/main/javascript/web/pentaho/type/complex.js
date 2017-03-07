@@ -31,6 +31,8 @@ define([
 
   "use strict";
 
+  var O_hasOwn = Object.prototype.hasOwnProperty;
+
   // TODO: self-recursive complexes won't work if we don't handle them specially:
   // Component.parent : Component
   // Will cause requiring Component during it's own build procedure...
@@ -40,7 +42,6 @@ define([
   return function(context) {
 
     var Element = context.get(elemFactory);
-    var O_hasOwn = Object.prototype.hasOwnProperty;
 
     /**
      * @name pentaho.type.Complex.Type
@@ -109,30 +110,15 @@ define([
         // Create `Property` instances.
         var propTypes = this.type._getProps();
         var i = propTypes.length;
-        var isArray = Array.isArray(spec);
+        var readSpec = !spec ? undefined : (Array.isArray(spec) ? readSpecByIndex : readSpecByNameOrAlias);
         var values = {};
         var propType;
         var value;
 
         while(i--) {
           propType = propTypes[i];
-          var name = propType.name;
-          var valueSpec;
-          if(spec) {
-            if(isArray) {
-              valueSpec = spec[propType.index];
-            } else {
-              var alias;
-              valueSpec = O_hasOwn.call(spec, name) ? spec[name] :
-                          O_hasOwn.call(spec, (alias = propType.nameAlias)) ? spec[alias] :
-                          undefined;
-            }
-          } else {
-            valueSpec = undefined;
-          }
 
-
-          values[name] = value = propType.toValue(valueSpec);
+          values[propType.name] = value = propType.toValue(readSpec && readSpec(spec, propType));
 
           // If this instance is being newed up while there is an ambient transaction,
           // it should not cease to exist if the txn is rejected,
@@ -1052,4 +1038,16 @@ define([
 
     return Complex;
   };
+
+  // Constructor's helper functions
+  function readSpecByIndex(spec, propType) {
+    return spec[propType.index];
+  }
+
+  function readSpecByNameOrAlias(spec, propType) {
+    var name;
+    return O_hasOwn.call(spec, (name = propType.name)) ? spec[name] :
+           O_hasOwn.call(spec, (name = propType.nameAlias)) ? spec[name] :
+           undefined;
+  }
 });
